@@ -1,9 +1,11 @@
 #pragma once
+#include <stdint.h>
+
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <vector>
 
@@ -11,48 +13,34 @@
 // or just keep them as is and do not define the macro to 1
 #define SUPPORT_IFSTREAM 1
 #define SUPPORT_ISQRT 1
-#define SUPPORT_EVAL 0 // special bonus
+#define SUPPORT_EVAL 0  // special bonus
 
-#define WORD uint32_t
-#define WORD_MAX UINT32_MAX
-#define DOUBLE_WORD uint64_t
-#define HALF_WORD uint16_t
-#define WORD_SIZE 32
-#define HALF_WORD_SIZE 16
+using WORD = uint32_t;
+constexpr auto WORD_MAX = UINT32_MAX;
+using DWORD = uint64_t;
+using HALF_WORD = uint16_t;
+constexpr auto WORD_SIZE = 32;
+constexpr auto HALF_WORD_SIZE = 16;
 
 class BigInteger {
-public:
-  std::vector<WORD> digits; // Least Significant Digit first in vector
-  bool isNegative = false;
-  BigInteger() {
-    digits = std::vector<WORD>();
-    digits.push_back(0);
-    isNegative = false;
-  };
+ public:
+  std::vector<WORD> digits;  // Least Significant Digit first in vector
+  bool negative ;
 
-  BigInteger(int64_t value) {
-    isNegative = (value < 0);
+  BigInteger() : digits(1, 0), negative(false) {}
+  BigInteger(int64_t value) : negative(value < 0), digits(1, 0) {
     value = std::abs(value);
-    digits = std::vector<WORD>();
-
-    digits.push_back(static_cast<WORD>(value & WORD_MAX));  // Lower 32 bits
-    WORD upper = static_cast<WORD>(value >> WORD_SIZE); // Upper 32 bits
-
+    digits[0] = static_cast<WORD>(value & WORD_MAX);
+    WORD upper = static_cast<WORD>(value >> WORD_SIZE);
     if (upper > 0) {
       digits.push_back(upper);
     }
   }
+  BigInteger(const std::string &number) : BigInteger() {
+    if (number.empty()) throw std::invalid_argument("Empty string is not a valid BigInteger");
 
-  BigInteger(const std::string &number) : isNegative(false) {
-    if (number.empty())
-      throw std::invalid_argument("Empty string is not a valid BigInteger");
-
-    digits = std::vector<WORD>();
-    digits.push_back(0);
     size_t startPos = 0;
-    if (number[0] == '-') {
-      startPos = 1;
-    } else if (number[0] == '+') {
+    if (number[0] == '-' || number[0] == '+') {
       startPos = 1;
     }
 
@@ -61,31 +49,21 @@ public:
       if (std::isdigit(digit) == 0)
         throw std::invalid_argument("Invalid character in BigInteger string");
 
-      *this *= BigInteger((WORD)10);
-      *this += BigInteger((WORD)(digit - '0'));
+      *this *= BigInteger(10);
+      *this += BigInteger(digit - '0');
     }
 
     if (number[0] == '-') {
-      isNegative = true;
+      negative = true;
     }
   };
-  // copy
-  BigInteger(const BigInteger &other) {
-    digits = std::vector<WORD>();
-    digits = other.digits;
-    isNegative = other.isNegative;
-  };
-  BigInteger &operator=(const BigInteger &rhs) {
-    digits = std::vector<WORD>();
-    digits = rhs.digits;
-    isNegative = rhs.isNegative;
-    return *this;
-  };
+  BigInteger(const BigInteger &other) = default;
+  BigInteger &operator=(const BigInteger &rhs) = default;
   void addToPosDigit(WORD value, size_t pos) {
     if (pos >= digits.size()) {
       digits.resize(pos + 1, 0);
     }
-    DOUBLE_WORD sum = (DOUBLE_WORD)digits[pos] + (DOUBLE_WORD)value;
+    DWORD sum = (DWORD)digits[pos] + (DWORD)value;
     if (sum > WORD_MAX) {
       digits[pos] = sum & WORD_MAX;
       addToPosDigit(sum >> WORD_SIZE, pos + 1);
@@ -93,14 +71,12 @@ public:
       digits[pos] = sum;
     }
   };
-  // unary operators
   const BigInteger &operator+() const { return *this; };
   BigInteger operator-() const {
     BigInteger result = *this;
-    result.isNegative = !result.isNegative;
+    result.negative = !result.negative;
     return result;
   };
-  // binary arithmetics operators
   BigInteger &operator+=(const BigInteger &rhs) {
     *this = *this + rhs;
     return *this;
@@ -121,22 +97,38 @@ public:
     *this = *this % rhs;
     return *this;
   };
-
-  // Returns new BigInteger with digits shifted left by shift
-  BigInteger leftShift(BigInteger number, size_t shift){
-    BigInteger result;
-    result.digits.resize(number.digits.size() + shift, 0);
-    for (size_t i = 0; i < number.digits.size(); ++i) {
-      result.digits[i + shift] = number.digits[i];
+  // NOTE: This function assumes that the number have no leading zeros
+  size_t count_leading_zeros() const {
+    WORD x = digits.back();
+    if (x == 0) return 0;
+    return __builtin_clz(x);
+  }
+  void normalize() {
+    remove_leading_zero_digits();
+    if (is_zero()) return;
+    *this = left_shift(*this, count_leading_zeros());
+  }
+  BigInteger toNormalized() const {
+    BigInteger result = *this;
+    result.normalize();
+    return result;
+  } 
+  std::string toBitString() const {
+    std::string result;
+    for (int i = digits.size() - 1; i >= 0; i--) {
+      WORD current = digits[i];
+      for (int j = 0; j < WORD_SIZE; ++j) {
+        result.push_back('0' + (current & 1));
+        current >>= 1;
+      }
+      if (i != digits.size() - 1)
+        result.push_back(' ');
     }
+    std::reverse(result.begin(), result.end());
     return result;
   }
-
   std::string toString() const {
-    if (digits.size() == 1 && digits[0] == 0) {
-      return "0";
-    }
-
+    if (is_zero()) return "0";
     BigInteger temp = *this;
     std::string result;
 
@@ -145,29 +137,14 @@ public:
       result.push_back('0' + remainder);
     }
 
-    if (isNegative) {
+    if (negative) {
       result.push_back('-');
     }
 
     std::reverse(result.begin(), result.end());
     return result;
   }
-
-  static BigInteger multiplyByTwo(const BigInteger &num) {
-    BigInteger result;
-    result.digits.resize(num.digits.size(), 0);
-    WORD carry = 0;
-    for (size_t i = 0; i < num.digits.size(); i++) {
-      uint64_t current = uint64_t(num.digits[i]) * 2 + carry;
-      result.digits[i] = current & WORD_MAX;
-      carry = current >> WORD_SIZE;
-    }
-    if (carry != 0) {
-      result.digits.push_back(carry);
-    }
-    return result;
-  };
-  BigInteger &normalize() {
+  BigInteger &remove_leading_zero_digits() {
     while (!digits.empty() && digits.back() == 0) {
       digits.pop_back();
     }
@@ -180,9 +157,8 @@ public:
   };
   // Square root function
   double sqrt() const {
-    if (isNegative) {
-      throw std::domain_error(
-          "Square root of a negative number is not defined");
+    if (negative) {
+      throw std::domain_error("Square root of a negative number is not defined");
     }
     return std::sqrt(static_cast<double>(*this));
   }
@@ -196,57 +172,63 @@ public:
   friend BigInteger operator-(BigInteger lhs, const BigInteger &rhs);
   friend BigInteger operator/(BigInteger lhs, const BigInteger &rhs);
   friend BigInteger operator%(BigInteger lhs, const BigInteger &rhs);
+  friend BigInteger left_shift(BigInteger number, size_t shift);
 
   operator double() const {
     double result = 0;
     for (int i = digits.size() - 1; i >= 0; --i) {
       result += result * (1LL << WORD_SIZE) + digits[i];
     }
-    return isNegative ? -result : result;
+    return negative ? -result : result;
   }
+
+  WORD operator[](size_t index) const {
+    if (index >= digits.size()) {
+      return 0;
+    }
+    return digits[index];
+  }
+
+  size_t size() const { return digits.size(); }
 #if SUPPORT_ISQRT == 1
   // Integer square root function
   BigInteger isqrt() const {
-    if (isNegative) {
-      throw std::domain_error(
-          "Square root of a negative number is not defined");
+    if (negative) {
+      throw std::domain_error("Square root of a negative number is not defined");
     }
-    BigInteger left(0), right = *this, result;
-    while (left <= right) {
-      BigInteger mid = (left + right) / BigInteger(2);
-      BigInteger square = mid * mid;
+    if (is_zero()) return BigInteger(0);
+    if (*this == BigInteger(1)) return BigInteger(1);
 
+    BigInteger left = BigInteger(1);
+    BigInteger right = *this;
+    BigInteger mid;
+    while (left < right) {
+      mid = (left + right) / BigInteger(2);
+      BigInteger square = mid * mid;
       if (square == *this) {
         return mid;
       } else if (square < *this) {
         left = mid + BigInteger(1);
-        result = mid;
       } else {
         right = mid - BigInteger(1);
       }
     }
-    return result;
-  }
+
+    return left;
+  };
 #endif
-
+  // Return lhs - rhs assuming lhs >= rhs in absolute value of both numbers
   static BigInteger subAbs(const BigInteger &lhs, const BigInteger &rhs) {
-    if (compareMagnitude(lhs, rhs) < 0) {
-      // Ensure lhs >= rhs in terms of absolute value
-      throw std::invalid_argument(
-          "lhs must be greater than or equal to rhs in absolute value");
-    }
-
     BigInteger result;
-    result.digits.resize(lhs.digits.size(), 0);
+    result.digits.resize(lhs.size(), 0);
     bool borrow = false;
 
-    for (size_t i = 0; i < lhs.digits.size(); ++i) {
-      int64_t diff = int64_t(lhs.digits[i]) -
-                     (i < rhs.digits.size() ? rhs.digits[i] : 0) - borrow;
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      int64_t diff = int64_t(lhs[i]) - (i < rhs.size() ? rhs[i] : 0) - borrow;
       borrow = false;
 
       if (diff < 0) {
-        diff += (1LL << WORD_SIZE); // Assuming WORD_SIZE is 32 for WORD
+        diff += (1LL << WORD_SIZE);  // Assuming WORD_SIZE is 32 for WORD
         borrow = true;
       }
 
@@ -261,16 +243,20 @@ public:
     return result;
   }
 
-  BigInteger addAbs(BigInteger &lhs, BigInteger &rhs) {
+  void clear() {
+    // Set all digits to zero
+    std::fill(digits.begin(), digits.end(), 0);
+  }
+  BigInteger addAbs(BigInteger &lhs, BigInteger &rhs) const {
     BigInteger result;
-    size_t maxLength = std::max(lhs.digits.size(), rhs.digits.size());
+    size_t maxLength = std::max(lhs.size(), rhs.size());
     result.digits.resize(maxLength + 1, 0);
 
     for (size_t i = 0; i < maxLength; ++i) {
-      WORD a = i < lhs.digits.size() ? lhs.digits[i] : 0;
-      WORD b = i < rhs.digits.size() ? rhs.digits[i] : 0;
-      WORD res = result.digits[i];
-      DOUBLE_WORD sum = (DOUBLE_WORD)a + (DOUBLE_WORD)b + (DOUBLE_WORD)res;
+      WORD a = i < lhs.size() ? lhs[i] : 0;
+      WORD b = i < rhs.size() ? rhs[i] : 0;
+      WORD res = result[i];
+      DWORD sum = (DWORD)a + (DWORD)b + (DWORD)res;
       if (sum > WORD_MAX) {
         result.digits[i] = sum & WORD_MAX;
         if (i + 1 < maxLength) {
@@ -283,224 +269,288 @@ public:
       }
     }
 
-    return result.normalize();
+    return result.remove_leading_zero_digits();
   }
-  bool isZero() const { return digits.size() == 1 && digits[0] == 0; }
+  bool is_zero() const { return digits.size() == 1 && digits[0] == 0; }
 
-private:
+ private:
   WORD divideBySingleDigit(WORD divisor) {
-    DOUBLE_WORD remainder = 0;
+    DWORD remainder = 0;
     for (int i = digits.size() - 1; i >= 0; --i) {
-      DOUBLE_WORD current = remainder * ((DOUBLE_WORD)WORD_MAX + 1) + digits[i];
+      DWORD current = remainder * ((DWORD)WORD_MAX + 1) + digits[i];
       digits[i] = current / divisor;
       remainder = current % divisor;
     }
 
-    while (!digits.empty() && digits.back() == 0) {
-      digits.pop_back();
-    }
+    remove_leading_zero_digits();
 
     return remainder;
   }
 
   static int compareMagnitude(const BigInteger &a, const BigInteger &b) {
-    if (a.digits.size() != b.digits.size()) {
-      return a.digits.size() < b.digits.size() ? -1 : 1;
+    if (a.size() != b.size()) {
+      return a.size() < b.size() ? -1 : 1;
     }
-    for (int i = a.digits.size() - 1; i >= 0; --i) {
-      if (a.digits[i] != b.digits[i]) {
-        return a.digits[i] < b.digits[i] ? -1 : 1;
+    for (int i = a.size() - 1; i >= 0; --i) {
+      if (a[i] != b[i]) {
+        return a[i] < b[i] ? -1 : 1;
       }
     }
-    return 0; // Magnitudes are equal
+    return 0;  // Magnitudes are equal
   }
 };
 
-inline BigInteger operator+(BigInteger lhs, const BigInteger &rhs) {
-  if (lhs.isZero()) {
+inline BigInteger ABS(const BigInteger &number) {
+  BigInteger result = number;
+  result.negative = false;
+  return result;
+}
+// Returns new BigInteger with digits shifted left by shift, if number is zero return zero
+BigInteger left_shift(const BigInteger number, const size_t shift) {
+  if (number.is_zero()) return number;
+  if (shift == 0) return number;
+
+  WORD digit_shift = shift / WORD_SIZE;
+  WORD bit_shift = shift % WORD_SIZE;
+  BigInteger result;
+  result.negative = number.negative;
+  result.digits.resize(number.size() + digit_shift + 1, 0);
+
+  WORD carry = 0;
+  for (size_t i = 0; i < number.size() + digit_shift; ++i) {
+    WORD current = number[i];
+    result.digits[i + digit_shift] = (current << bit_shift) | carry;
+    carry = current >> (WORD_SIZE - bit_shift);
+  }
+  if (carry != 0) {
+    result.digits[number.size() + digit_shift] = carry;
+  }
+
+  result.remove_leading_zero_digits();
+  return result;
+}
+
+inline BigInteger operator+(const BigInteger lhs, const BigInteger &rhs) {
+  if (lhs.is_zero()) {
     return rhs;
-  } else if (rhs.isZero()) {
+  } else if (rhs.is_zero()) {
     return lhs;
   }
-  if (lhs.isNegative && !rhs.isNegative) { // -a + b = b - a
-    lhs.isNegative = false;
-    return rhs - lhs;
-  } else if (!lhs.isNegative && rhs.isNegative) { // a + (-b) = a - b
-    BigInteger temp = rhs;
-    temp.isNegative = false;
-    return (lhs - temp).normalize();
-  } else { // a + b or -a + (-b)
+
+  if (lhs.negative && !rhs.negative) {  // -a + b = b - a
+    return rhs - (-lhs);
+  } else if (!lhs.negative && rhs.negative) {  // a + (-b) = a - b
+    return lhs - (-rhs);
+  } else {  // a + b or -a + (-b)
     BigInteger temp = rhs, temp2 = lhs;
-    temp.isNegative = false;
-    temp2.isNegative = false;
+    temp.negative = false;
+    temp2.negative = false;
     BigInteger result = lhs.addAbs(temp2, temp);
-    result.isNegative = lhs.isNegative && rhs.isNegative;
+    result.negative = lhs.negative && rhs.negative;
     return result;
   }
 }
 
-inline BigInteger operator-(BigInteger lhs, const BigInteger &rhs) {
-  if (lhs.isZero()) {
-    BigInteger result = rhs;
-    result.isNegative = !result.isNegative;
-    return result.normalize();
-  } else if (rhs.isZero()) {
+inline BigInteger operator-(const BigInteger lhs, const BigInteger &rhs)  {
+  if (lhs.is_zero()) {
+    return -rhs;
+  } else if (rhs.is_zero()) {
     return lhs;
   }
 
   BigInteger result;
-  result.digits.resize(std::max(lhs.digits.size(), rhs.digits.size()), 0);
+  result.digits.resize(std::max(lhs.size(), rhs.size()), 0);
 
-  if (lhs.isNegative && rhs.isNegative) { // -a - (-b) = -a + b = b - a
-    return (-rhs) - lhs;
-    /* BigInteger temp = rhs; */
-    /* temp.isNegative = false; */
-    /* lhs.isNegative = false; */
-    /* return temp - lhs; */
-  } else if (lhs.isNegative && !rhs.isNegative) { // -a - b = -(a + b)
-    lhs.isNegative = false;
-    result = lhs + rhs;
-    result.isNegative = true;
-    return result;
-  } else if (!lhs.isNegative && rhs.isNegative) { // a - (-b) = a + b
-    BigInteger temp = rhs;
-    temp.isNegative = false;
-    result = lhs + temp;
-    return result;
-  } else { // a - b
+  if (lhs.negative && rhs.negative) {  // -a - (-b) = -a + b = b - a
+    return (-rhs) - (-lhs);
+  } else if (lhs.negative && !rhs.negative) {  // -a - b = -(a + b)
+    return -((-lhs) + rhs);
+  } else if (!lhs.negative && rhs.negative) {  // a - (-b) = a + b
+    return lhs + (-rhs);
+  } else {  // a - b
     if (lhs < rhs) {
       result = rhs - lhs;
-      result.isNegative = true;
+      result.negative = true;
       return result;
     } else {
       result = BigInteger::subAbs(lhs, rhs);
-      return result.normalize();
+      return result.remove_leading_zero_digits();
     }
   }
 };
 
-inline BigInteger operator*(BigInteger lhs, const BigInteger &rhs) {
-  if (lhs.isZero() || rhs.isZero()) {
-    return BigInteger((WORD)0);
+inline BigInteger operator*(const BigInteger lhs, const WORD rhs) {
+  if (lhs.is_zero() || rhs == 0) return BigInteger((WORD)0);
+  if (lhs == BigInteger(1)) return BigInteger(rhs);
+  if (rhs == 1) return lhs;
+
+  BigInteger result;
+  result.digits.resize(lhs.size() + 1, 0);
+
+  for (size_t i = 0; i < lhs.size(); ++i) {
+    DWORD product = (DWORD)lhs[i] * (DWORD)rhs;
+    result.addToPosDigit(product & WORD_MAX, i);
+    result.addToPosDigit(product >> WORD_SIZE, i + 1);
   }
 
-  BigInteger result, carries;
-  result.digits.resize(lhs.digits.size() + rhs.digits.size(), 0);
+  // Remove leading zeros
+  while (result.size() > 1 && result.digits.back() == 0) {
+    result.digits.pop_back();
+  }
+  result.negative = lhs.negative;
+  return result;
+}
+inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
+  if (lhs.is_zero() || rhs.is_zero()) return BigInteger((WORD)0);
+  if (lhs == BigInteger(1)) return rhs;
+  if (rhs == BigInteger(1)) return lhs;
 
-  for (size_t i = 0; i < lhs.digits.size(); ++i) {
+  BigInteger result, carries;
+  result.digits.resize(lhs.size() + rhs.size(), 0);
+
+  for (size_t i = 0; i < lhs.size(); ++i) {
     for (size_t j = 0; j < rhs.digits.size(); ++j) {
-      DOUBLE_WORD product =
-          (DOUBLE_WORD)lhs.digits[i] * (DOUBLE_WORD)rhs.digits[j];
+      DWORD product = (DWORD)lhs.digits[i] * (DWORD)rhs.digits[j];
       result.addToPosDigit(product & WORD_MAX, i + j);
       result.addToPosDigit(product >> WORD_SIZE, i + j + 1);
     }
   }
 
   // Remove leading zeros
-  while (result.digits.size() > 1 && result.digits.back() == 0) {
+  while (result.size() > 1 && result.digits.back() == 0) {
     result.digits.pop_back();
   }
-  result.isNegative = lhs.isNegative ^ rhs.isNegative;
+  result.negative = lhs.negative ^ rhs.negative;
 
   return result;
 };
-inline BigInteger operator%(BigInteger lhs, const BigInteger &rhs) {
-  if (rhs.digits.empty() || (rhs.digits.size() == 1 && rhs.digits[0] == 0)) {
-    throw std::runtime_error("Modulo by zero");
+inline BigInteger operator^(const BigInteger lhs, const size_t rhs) {
+  if (rhs == 0) return BigInteger(1);
+  if (rhs == 1) return lhs;
+
+  BigInteger result = lhs;
+  for (size_t i = 0; i < rhs - 1; ++i) {
+    result *= lhs;
   }
+
+  return result;
+}
+inline BigInteger operator%(const BigInteger lhs, const BigInteger &rhs) {
+  if (rhs.is_zero()) throw std::runtime_error("Division by zero");
 
   BigInteger quotient = lhs / rhs;
-  BigInteger remainder = lhs - quotient * rhs;
+  BigInteger remainder = ABS(lhs) - ABS((quotient * rhs));
 
-  remainder.isNegative = false;
-
-  while (remainder.digits.size() > 1 && remainder.digits.back() == 0) {
-    remainder.digits.pop_back();
-  }
+  remainder.negative = lhs.negative;
 
   return remainder;
 };
-inline BigInteger operator/(BigInteger lhs, const BigInteger &rhs) {
-  if (rhs.isZero()) {
-    throw std::runtime_error("Division by zero");
-  }
-
-  if (lhs.isZero()) {
-    return BigInteger((WORD)0);
-  }
-
-  if (lhs == BigInteger(1)) {
-    return BigInteger(1);
-  }
-
-  if (lhs < rhs) {
-    return BigInteger((WORD)0);
-  }
-
-  // TODO: implement [] operator to access digits
+inline BigInteger operator<(const BigInteger lhs, WORD rhs) {
+  if (lhs.size() > 1) return false;
+  return lhs[0] < rhs;
+}
+inline BigInteger operator>(const BigInteger lhs, WORD rhs) {
+  if (lhs.size() > 1) return true;
+  return lhs[0] > rhs;
+}
+WORD normalize(WORD number) {
+  size_t count = __builtin_clz(number);
+  return number << count;
+}
+BigInteger operator/(const BigInteger lhs, WORD rhs) {
+  if (rhs == 0) throw std::runtime_error("Division by zero");
+  size_t shift = __builtin_clz(rhs);
+  rhs = normalize(rhs);
+  BigInteger dividend = left_shift(lhs, shift);
   BigInteger result;
-  result.digits.resize(lhs.digits.size(), 0);
-  BigInteger temp = lhs;
-  temp.isNegative = false;
-  BigInteger currentQuotient;
-
-  BigInteger tempDivisor = rhs;
-  tempDivisor.isNegative = false;
-  for (size_t i = lhs.digits.size(); i-- > 0;) {
-    result.digits[i] = 0;
-    while (temp >= tempDivisor) {
-      temp -= tempDivisor;
-      result.digits[i]++;
-    }
-    temp.digits.insert(temp.digits.begin(), lhs.digits[i]);
+  result.digits.resize(dividend.size(), 0);
+  DWORD remainder = 0;
+  for (int i = dividend.size() - 1; i >= 0; --i) {
+    DWORD current_digit = (remainder * ((DWORD)WORD_MAX + 1)) + (DWORD)dividend[i];
+    result.digits[i] = current_digit / rhs;
+    remainder = current_digit % rhs;
   }
 
-  result.isNegative = lhs.isNegative ^ rhs.isNegative;
-  return result.normalize();
+  return result.remove_leading_zero_digits();
+}
+static inline WORD digit_div(WORD high, WORD low, WORD divisor, WORD *remainder) {
+  DWORD dividend = ((DWORD)high << WORD_SIZE) + (DWORD)low;
+  DWORD quotient = dividend / divisor;
+  *remainder = dividend % divisor;
+  return quotient;
+}
+inline BigInteger operator/(const BigInteger lhs, const BigInteger &rhs) {
+  if (rhs.is_zero()) throw std::runtime_error("Division by zero");
+  if (lhs.is_zero()) return BigInteger(0);
+  if (lhs == BigInteger(1)) return BigInteger(1);
+  if (ABS(lhs) < ABS(rhs)) return BigInteger(0);
+  if (rhs.size() == 1) {
+    BigInteger result = lhs / rhs[0];
+    result.negative = lhs.negative ^ rhs.negative;
+    return result;
+  }
+
+  BigInteger divisor(rhs);
+  divisor.normalize();
+  divisor.negative = false;
+
+  BigInteger current_product;
+  current_product.digits.resize(lhs.size() + 1, 0);
+
+  BigInteger dividend = left_shift(lhs, rhs.count_leading_zeros());
+  dividend.negative = false;
+
+  BigInteger left_q = BigInteger(1);
+  BigInteger right_q(dividend);
+
+  BigInteger current_q;
+  while (left_q < right_q) {
+    current_q = (left_q + right_q) / (WORD)2;
+    current_product = current_q * divisor;
+    BigInteger diff = dividend - current_product;
+    if (diff.is_zero()) {
+      current_q.negative = lhs.negative ^ rhs.negative;
+      return current_q;
+    } else if (diff.negative) {
+      right_q  = current_q;
+    } else {
+      if (diff < divisor) {
+        current_q.negative = lhs.negative ^ rhs.negative;
+        return current_q;
+      }
+      left_q = current_q + BigInteger(1);
+    }
+
+  }
+
+  left_q.negative = lhs.negative ^ rhs.negative;
+  std::cout << "left_q: " << left_q.toString() << std::endl;
+  return left_q;
 };
 
 inline bool operator==(const BigInteger &lhs, const BigInteger &rhs) {
-  if (lhs.isZero() && rhs.isZero()) {
-    return true;
-  }
+  if (lhs.is_zero() && rhs.is_zero()) return true;
+  if (lhs.size() != rhs.size()) return false;
+  if (lhs.negative != rhs.negative) return false;
 
-  if (lhs.digits.size() != rhs.digits.size()) {
-    return false;
-  }
-
-  if (lhs.isNegative != rhs.isNegative) {
-    return false;
-  }
-
-  for (size_t i = lhs.digits.size(); i-- > 0;) {
-    if (lhs.digits[i] != rhs.digits[i]) {
-      return false;
-    }
+  for (size_t i = lhs.size(); i-- > 0;) {
+    if (lhs[i] != rhs[i]) return false;
   }
 
   return true;
 };
-inline bool operator!=(const BigInteger &lhs, const BigInteger &rhs) {
-  return !(lhs == rhs);
-};
+inline bool operator!=(const BigInteger &lhs, const BigInteger &rhs) { return !(lhs == rhs); };
 inline bool operator<(const BigInteger &lhs, const BigInteger &rhs) {
   return rhs > lhs && rhs != lhs;
 }
 inline bool operator>(const BigInteger &lhs, const BigInteger &rhs) {
-  if (lhs.isNegative && !rhs.isNegative) {
-    return false;
-  } else if (!lhs.isNegative && rhs.isNegative) {
-    return true;
-  } else if (lhs.isNegative && rhs.isNegative) {
-    return -lhs < -rhs;
-  }
-  if (lhs.digits.size() != rhs.digits.size()) {
-    return lhs.digits.size() > rhs.digits.size();
-  }
-  for (size_t i = lhs.digits.size(); i-- > 0;) {
-    if (lhs.digits[i] != rhs.digits[i]) {
-      return lhs.digits[i] > rhs.digits[i];
-    }
+  if (lhs.negative && !rhs.negative) return false;
+  if (!lhs.negative && rhs.negative) return true;
+  if (lhs.negative && rhs.negative) return -lhs < -rhs;
+  if (lhs.size() != rhs.size()) return lhs.size() > rhs.size();
+
+  for (size_t i = lhs.size(); i-- > 0;) {
+    if (lhs[i] != rhs[i]) return lhs[i] > rhs[i];
   }
   return false;
 };
@@ -532,18 +582,17 @@ inline std::istream &operator>>(std::istream &lhs, BigInteger &rhs) {
 }
 #endif
 
-
 class BigInttegerShifted : BigInteger {
-public:
+ public:
   BigInttegerShifted() : BigInteger() { shift = 0; };
 
-private:
+ private:
   size_t shift;
 };
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 class BigRational {
-public:
+ public:
   BigInteger numerator = BigInteger(0);
   BigInteger denominator = BigInteger(1);
   bool isNegative = false;
@@ -596,10 +645,10 @@ public:
 
   double sqrt() const;
 
-  bool isZero() const { return numerator.isZero(); }
+  bool isZero() const { return numerator.is_zero(); }
 
   BigInteger gcd(BigInteger numerator, BigInteger denominator) const {
-    while (!denominator.isZero()) {
+    while (!denominator.is_zero()) {
       BigInteger temp = denominator;
       denominator = numerator % denominator;
       numerator = temp;
@@ -610,8 +659,8 @@ public:
 
   BigRational normalize() const {
     BigRational result = *this;
-    result.numerator.isNegative = false;
-    result.denominator.isNegative = false;
+    result.numerator.negative = false;
+    result.denominator.negative = false;
     BigInteger gcd = result.gcd(result.numerator, result.denominator);
     result.numerator /= gcd;
     result.denominator /= gcd;
@@ -621,8 +670,7 @@ public:
   BigRational addAbs(const BigRational &lhs, const BigRational &rhs) const {
     BigRational result;
     result.denominator = lhs.denominator * rhs.denominator;
-    result.numerator =
-        lhs.numerator * rhs.denominator + rhs.numerator * lhs.denominator;
+    result.numerator = lhs.numerator * rhs.denominator + rhs.numerator * lhs.denominator;
     return result.normalize();
   }
 
@@ -630,26 +678,22 @@ public:
 #if SUPPORT_ISQRT == 1
   BigInteger isqrt() const;
 #endif
-private:
+ private:
   // here you can add private data and members, but do not add stuff to
   // public interface, also you can declare friends here if you want
 };
 
 inline BigRational operator+(BigRational lhs, const BigRational &rhs) {
-  if (lhs.numerator.isZero()) {
+  if (lhs.numerator.is_zero()) {
     return rhs;
-  } else if (rhs.numerator.isZero()) {
+  } else if (rhs.numerator.is_zero()) {
     return lhs;
   }
-  if (lhs.isNegative && !rhs.isNegative) { // -a + b = b - a
-    lhs.isNegative = false;
-    BigRational temp = rhs;
-    return temp - lhs;
-  } else if (!lhs.isNegative && rhs.isNegative) { // a + (-b) = a - b
-    BigRational temp = rhs;
-    temp.isNegative = false;
-    return (lhs - temp).normalize();
-  } else { // a + b or -a + (-b)
+  if (lhs.isNegative && !rhs.isNegative) {  // -a + b = b - a
+    return rhs - (-lhs);
+  } else if (!lhs.isNegative && rhs.isNegative) {  // a + (-b) = a - b
+    return lhs - (-rhs);
+  } else {  // a + b or -a + (-b)
     BigRational temp = rhs, temp2 = lhs;
     temp.isNegative = false;
     temp2.isNegative = false;
@@ -659,18 +703,17 @@ inline BigRational operator+(BigRational lhs, const BigRational &rhs) {
   }
 };
 inline BigRational operator-(BigRational lhs, const BigRational &rhs) {
-  if (lhs.numerator.isZero()) {
+  if (lhs.numerator.is_zero()) {
     BigRational result = rhs;
     result.isNegative = !result.isNegative;
     return result.normalize();
-  } else if (rhs.numerator.isZero()) {
+  } else if (rhs.numerator.is_zero()) {
     return lhs;
   }
 
   BigRational result;
   result.denominator = lhs.denominator * rhs.denominator;
-  result.numerator =
-      lhs.numerator * rhs.denominator - rhs.numerator * lhs.denominator;
+  result.numerator = lhs.numerator * rhs.denominator - rhs.numerator * lhs.denominator;
   result.isNegative = lhs.isNegative ^ rhs.isNegative;
   return result.normalize();
 };
@@ -681,7 +724,7 @@ inline BigRational operator*(BigRational lhs, const BigRational &rhs) {
   result.isNegative = lhs.isNegative ^ rhs.isNegative;
   return result.normalize();
 };
-inline BigRational operator/(BigRational lhs, const BigRational &rhs) {
+inline BigRational operator/(const BigRational lhs, const BigRational &rhs) {
   BigRational result;
   result.numerator = lhs.numerator * rhs.denominator;
   result.denominator = lhs.denominator * rhs.numerator;
@@ -710,14 +753,10 @@ inline bool operator==(const BigRational &lhs, const BigRational &rhs) {
 
   return true;
 };
-inline bool operator!=(const BigRational &lhs, const BigRational &rhs) {
-  return !(lhs == rhs);
-};
+inline bool operator!=(const BigRational &lhs, const BigRational &rhs) { return !(lhs == rhs); };
 inline bool operator<(const BigRational &lhs, const BigRational &rhs) {
-  if (lhs.isNegative && !rhs.isNegative)
-    return true;
-  if (!lhs.isNegative && rhs.isNegative)
-    return false;
+  if (lhs.isNegative && !rhs.isNegative) return true;
+  if (!lhs.isNegative && rhs.isNegative) return false;
 
   if (lhs.isNegative && rhs.isNegative) {
     lhs.normalize();
@@ -730,10 +769,8 @@ inline bool operator<(const BigRational &lhs, const BigRational &rhs) {
   }
 }
 inline bool operator>(const BigRational &lhs, const BigRational &rhs) {
-  if (lhs.isNegative && !rhs.isNegative)
-    return false;
-  if (!lhs.isNegative && rhs.isNegative)
-    return true;
+  if (lhs.isNegative && !rhs.isNegative) return false;
+  if (!lhs.isNegative && rhs.isNegative) return true;
 
   if (lhs.isNegative && rhs.isNegative) {
     lhs.normalize();
@@ -760,7 +797,7 @@ inline std::ostream &operator<<(std::ostream &lhs, const BigRational &rhs) {
 #if SUPPORT_IFSTREAM == 1
 // this should behave exactly the same as reading int with respect to
 // whitespace, consumed characters etc...
-inline std::istream &operator>>(std::istream &lhs, BigRational &rhs); // bonus
+inline std::istream &operator>>(std::istream &lhs, BigRational &rhs);  // bonus
 #endif
 
 #if SUPPORT_EVAL == 1
