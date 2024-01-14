@@ -25,7 +25,7 @@ constexpr auto HALF_WORD_SIZE = 16;
 class BigInteger {
  public:
   std::vector<WORD> digits;  // Least Significant Digit first in vector
-  bool negative ;
+  bool negative;
 
   BigInteger() : digits(1, 0), negative(false) {}
   BigInteger(int64_t value) : negative(value < 0), digits(1, 0) {
@@ -36,7 +36,7 @@ class BigInteger {
       digits.push_back(upper);
     }
   }
-  BigInteger(const std::string &number) : BigInteger() {
+  explicit BigInteger(const std::string &number) : BigInteger() {
     if (number.empty()) throw std::invalid_argument("Empty string is not a valid BigInteger");
 
     size_t startPos = 0;
@@ -56,7 +56,7 @@ class BigInteger {
     if (number[0] == '-') {
       negative = true;
     }
-  };
+  }
   BigInteger(const BigInteger &other) = default;
   BigInteger &operator=(const BigInteger &rhs) = default;
   void addToPosDigit(WORD value, size_t pos) {
@@ -70,33 +70,33 @@ class BigInteger {
     } else {
       digits[pos] = sum;
     }
-  };
-  const BigInteger &operator+() const { return *this; };
+  }
+  const BigInteger &operator+() const { return *this; }
   BigInteger operator-() const {
     BigInteger result = *this;
     result.negative = !result.negative;
     return result;
-  };
+  }
   BigInteger &operator+=(const BigInteger &rhs) {
     *this = *this + rhs;
     return *this;
-  };
+  }
   BigInteger &operator-=(const BigInteger &rhs) {
     *this = *this - rhs;
     return *this;
-  };
+  }
   BigInteger &operator*=(const BigInteger &rhs) {
     *this = *this * rhs;
     return *this;
-  };
+  }
   BigInteger &operator/=(const BigInteger &rhs) {
     *this = *this / rhs;
     return *this;
-  };
+  }
   BigInteger &operator%=(const BigInteger &rhs) {
     *this = *this % rhs;
     return *this;
-  };
+  }
   // NOTE: This function assumes that the number have no leading zeros
   size_t count_leading_zeros() const {
     WORD x = digits.back();
@@ -112,7 +112,7 @@ class BigInteger {
     BigInteger result = *this;
     result.normalize();
     return result;
-  } 
+  }
   std::string toBitString() const {
     std::string result;
     for (int i = digits.size() - 1; i >= 0; i--) {
@@ -121,16 +121,16 @@ class BigInteger {
         result.push_back('0' + (current & 1));
         current >>= 1;
       }
-      if (i != digits.size() - 1)
-        result.push_back(' ');
+      if (i != digits.size() - 1) result.push_back(' ');
     }
     std::reverse(result.begin(), result.end());
     return result;
   }
   std::string toString() const {
     if (is_zero()) return "0";
-    BigInteger temp = *this;
+    auto temp = *this;
     std::string result;
+    result.reserve(digits.size() * (std::log10(WORD_MAX) + 1));  // Estimated reserve
 
     while (temp.digits.size() > 1 || temp.digits[0] != 0) {
       WORD remainder = temp.divideBySingleDigit(10);
@@ -144,7 +144,7 @@ class BigInteger {
     std::reverse(result.begin(), result.end());
     return result;
   }
-  BigInteger &remove_leading_zero_digits() {
+  inline BigInteger &remove_leading_zero_digits() {
     while (!digits.empty() && digits.back() == 0) {
       digits.pop_back();
     }
@@ -154,8 +154,38 @@ class BigInteger {
     }
 
     return *this;
-  };
-  // Square root function
+  }
+  inline BigInteger &divideByTwo() {
+    WORD remainder = 0;
+    for (int i = digits.size() - 1; i >= 0; --i) {
+      WORD current = digits[i];
+      digits[i] = (current >> 1) | remainder;
+      remainder = (current & 1) << (WORD_SIZE - 1);
+    }
+
+    remove_leading_zero_digits();
+
+    return *this;
+  }
+  inline BigInteger &multiplyByTwo() {
+    WORD carry = 0;
+    for (size_t i = 0; i < digits.size(); ++i) {
+      WORD current = digits[i];
+      digits[i] = (current << 1) | carry;
+      carry = current >> (WORD_SIZE - 1);
+    }
+
+    if (carry != 0) {
+      digits.push_back(carry);
+    }
+
+    return *this;
+  }
+  BigInteger multiplyByTwo() const {
+    BigInteger result = *this;
+    result.multiplyByTwo();
+    return result;
+  }
   double sqrt() const {
     if (negative) {
       throw std::domain_error("Square root of a negative number is not defined");
@@ -215,7 +245,7 @@ class BigInteger {
     }
 
     return left;
-  };
+  }
 #endif
   // Return lhs - rhs assuming lhs >= rhs in absolute value of both numbers
   static BigInteger subAbs(const BigInteger &lhs, const BigInteger &rhs) {
@@ -247,7 +277,7 @@ class BigInteger {
     // Set all digits to zero
     std::fill(digits.begin(), digits.end(), 0);
   }
-  BigInteger addAbs(BigInteger &lhs, BigInteger &rhs) const {
+  BigInteger addAbs(const BigInteger &lhs, const BigInteger &rhs) const {
     BigInteger result;
     size_t maxLength = std::max(lhs.size(), rhs.size());
     result.digits.resize(maxLength + 1, 0);
@@ -274,7 +304,12 @@ class BigInteger {
   bool is_zero() const { return digits.size() == 1 && digits[0] == 0; }
 
  private:
+  // Returns remainder, changes the number to the quotient
   WORD divideBySingleDigit(WORD divisor) {
+    if (divisor == 0) throw std::runtime_error("Division by zero");
+    if (divisor == 1) return 0;
+    if (divisor == 2) return divideByTwo();
+
     DWORD remainder = 0;
     for (int i = digits.size() - 1; i >= 0; --i) {
       DWORD current = remainder * ((DWORD)WORD_MAX + 1) + digits[i];
@@ -351,7 +386,7 @@ inline BigInteger operator+(const BigInteger lhs, const BigInteger &rhs) {
   }
 }
 
-inline BigInteger operator-(const BigInteger lhs, const BigInteger &rhs)  {
+inline BigInteger operator-(const BigInteger lhs, const BigInteger &rhs) {
   if (lhs.is_zero()) {
     return -rhs;
   } else if (rhs.is_zero()) {
@@ -371,18 +406,19 @@ inline BigInteger operator-(const BigInteger lhs, const BigInteger &rhs)  {
     if (lhs < rhs) {
       result = rhs - lhs;
       result.negative = true;
-      return result;
+      return result.remove_leading_zero_digits();
     } else {
       result = BigInteger::subAbs(lhs, rhs);
       return result.remove_leading_zero_digits();
     }
   }
-};
+}
 
 inline BigInteger operator*(const BigInteger lhs, const WORD rhs) {
-  if (lhs.is_zero() || rhs == 0) return BigInteger((WORD)0);
+  if (lhs.is_zero() || rhs == 0) return BigInteger(0);
   if (lhs == BigInteger(1)) return BigInteger(rhs);
   if (rhs == 1) return lhs;
+  if (rhs == 2) return lhs.multiplyByTwo();
 
   BigInteger result;
   result.digits.resize(lhs.size() + 1, 0);
@@ -401,7 +437,7 @@ inline BigInteger operator*(const BigInteger lhs, const WORD rhs) {
   return result;
 }
 inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
-  if (lhs.is_zero() || rhs.is_zero()) return BigInteger((WORD)0);
+  if (lhs.is_zero() || rhs.is_zero()) return BigInteger(0);
   if (lhs == BigInteger(1)) return rhs;
   if (rhs == BigInteger(1)) return lhs;
 
@@ -423,7 +459,7 @@ inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
   result.negative = lhs.negative ^ rhs.negative;
 
   return result;
-};
+}
 inline BigInteger operator^(const BigInteger lhs, const size_t rhs) {
   if (rhs == 0) return BigInteger(1);
   if (rhs == 1) return lhs;
@@ -438,13 +474,13 @@ inline BigInteger operator^(const BigInteger lhs, const size_t rhs) {
 inline BigInteger operator%(const BigInteger lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) throw std::runtime_error("Division by zero");
 
-  BigInteger quotient = lhs / rhs;
-  BigInteger remainder = ABS(lhs) - ABS((quotient * rhs));
+  auto quotient = lhs / rhs;
+  auto remainder = ABS(lhs) - ABS((quotient * rhs));
 
   remainder.negative = lhs.negative;
 
   return remainder;
-};
+}
 inline BigInteger operator<(const BigInteger lhs, WORD rhs) {
   if (lhs.size() > 1) return false;
   return lhs[0] < rhs;
@@ -461,7 +497,7 @@ BigInteger operator/(const BigInteger lhs, WORD rhs) {
   if (rhs == 0) throw std::runtime_error("Division by zero");
   size_t shift = __builtin_clz(rhs);
   rhs = normalize(rhs);
-  BigInteger dividend = left_shift(lhs, shift);
+  auto dividend = left_shift(lhs, shift);
   BigInteger result;
   result.digits.resize(dividend.size(), 0);
   DWORD remainder = 0;
@@ -495,24 +531,23 @@ inline BigInteger operator/(const BigInteger lhs, const BigInteger &rhs) {
   divisor.negative = false;
 
   BigInteger current_product;
-  current_product.digits.resize(lhs.size() + 1, 0);
 
-  BigInteger dividend = left_shift(lhs, rhs.count_leading_zeros());
+  auto dividend = left_shift(lhs, rhs.count_leading_zeros());
   dividend.negative = false;
 
-  BigInteger left_q = BigInteger(1);
+  BigInteger left_q(2);
   BigInteger right_q(dividend);
 
   BigInteger current_q;
   while (left_q < right_q) {
-    current_q = (left_q + right_q) / (WORD)2;
+    current_q = (left_q + right_q).divideByTwo();
     current_product = current_q * divisor;
-    BigInteger diff = dividend - current_product;
+    auto diff = dividend - current_product;
     if (diff.is_zero()) {
       current_q.negative = lhs.negative ^ rhs.negative;
       return current_q;
     } else if (diff.negative) {
-      right_q  = current_q;
+      right_q = current_q;
     } else {
       if (diff < divisor) {
         current_q.negative = lhs.negative ^ rhs.negative;
@@ -520,13 +555,11 @@ inline BigInteger operator/(const BigInteger lhs, const BigInteger &rhs) {
       }
       left_q = current_q + BigInteger(1);
     }
-
   }
 
   left_q.negative = lhs.negative ^ rhs.negative;
-  std::cout << "left_q: " << left_q.toString() << std::endl;
   return left_q;
-};
+}
 
 inline bool operator==(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero() && rhs.is_zero()) return true;
@@ -539,7 +572,7 @@ inline bool operator==(const BigInteger &lhs, const BigInteger &rhs) {
 
   return true;
 };
-inline bool operator!=(const BigInteger &lhs, const BigInteger &rhs) { return !(lhs == rhs); };
+inline bool operator!=(const BigInteger &lhs, const BigInteger &rhs) { return !(lhs == rhs); }
 inline bool operator<(const BigInteger &lhs, const BigInteger &rhs) {
   return rhs > lhs && rhs != lhs;
 }
@@ -553,13 +586,13 @@ inline bool operator>(const BigInteger &lhs, const BigInteger &rhs) {
     if (lhs[i] != rhs[i]) return lhs[i] > rhs[i];
   }
   return false;
-};
+}
 inline bool operator<=(const BigInteger &lhs, const BigInteger &rhs) {
   return lhs < rhs || lhs == rhs;
-};
+}
 inline bool operator>=(const BigInteger &lhs, const BigInteger &rhs) {
   return lhs > rhs || lhs == rhs;
-};
+}
 inline std::ostream &operator<<(std::ostream &lhs, const BigInteger &rhs) {
   lhs << rhs.toString();
   return lhs;
@@ -581,16 +614,7 @@ inline std::istream &operator>>(std::istream &lhs, BigInteger &rhs) {
   return lhs;
 }
 #endif
-
-class BigInttegerShifted : BigInteger {
- public:
-  BigInttegerShifted() : BigInteger() { shift = 0; };
-
- private:
-  size_t shift;
-};
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///
 class BigRational {
  public:
   BigInteger numerator = BigInteger(0);
