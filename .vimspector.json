@@ -1,0 +1,31 @@
+{
+  "configurations": {
+    "Linux Launch": {
+      "adapter": "vscode-cpptools",
+      "configuration": {
+        "name": "Launch",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceRoot}/run",
+        "args": [],
+        "stopAtEntry": true,
+        "cwd": "${workspaceRoot}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          },
+          {
+            "text": "break main",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    }
+  }
+}
+

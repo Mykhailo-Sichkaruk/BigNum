@@ -1,5 +1,5 @@
 #include "catch_amalgamated.cpp"
-#include "lib.cpp"
+#include "../lib.cpp"
 
 std::string BigIntegerToString(BigInteger value) { return value.toString(); }
 
