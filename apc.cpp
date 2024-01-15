@@ -3,7 +3,7 @@
 
 std::string BigIntegerToString(BigInteger value) { return value.toString(); }
 
-TEST_CASE("Test subAbs(BigInteger, digit)"){
+TEST_CASE("Test subAbs(BigInteger, digit)") {
   BigInteger a("111");
   CHECK(BigInteger::subAbs(a, 1) == BigInteger("110"));
 }
@@ -28,22 +28,15 @@ TEST_CASE("ISQRT") {
   BigInteger a("100");
   CHECK(a.isqrt() == BigInteger("10"));
   BigInteger largeNum = BigInteger("100000000000000000000000000000000000000");  // 10^38
-  CHECK(largeNum.isqrt() == BigInteger("10000000000000000000"));     // 10^19
+  CHECK(largeNum.isqrt() == BigInteger("10000000000000000000"));                // 10^19
   CHECK_THROWS(BigInteger(-1).isqrt());
+  BigInteger largeNum2 = BigInteger("100000000000000000000000000000000000001");  // 10^38
+  CHECK(largeNum2.isqrt() == BigInteger("10000000000000000000"));                // 10^19
   CHECK(BigInteger(0).isqrt() == BigInteger(0));
   CHECK(BigInteger(1).isqrt() == BigInteger(1));
-  /* BigInteger largeNonPerfectSquare = */
-  /*     BigInteger("100000000000000000000000000000000000001");  // 10^38 + 1 */
-  /* CHECK(largeNonPerfectSquare.isqrt() == BigInteger("10000000000000000000000000000"));  // 10^19 */
-  /* BigInteger veryLargeNum = BigInteger("123456789012345678901234567890123456789");  // 39 digits */
-  /* BigInteger expectedSqrtVeryLargeNum("11111100000000000000"); */
-  /* REQUIRE(veryLargeNum.isqrt() == expectedSqrtVeryLargeNum); */
-  /* BigInteger randomLargeNum("987654321098765432109876543210"); */
-  /* BigInteger expectedSqrtRandomLarge =  */
-  /* REQUIRE(randomLargeNum.isqrt() == expectedSqrtRandomLarge); */
-  /* BigInteger maxInt("18446744073709551615");  // Maximum unsigned 64-bit integer */
-  /* BigInteger expectedSqrtMaxInt =  */
-  /* REQUIRE(maxInt.isqrt() == expectedSqrtMaxInt); */
+  BigInteger veryLargeNum = BigInteger("123456789012345678901234567890123456789");  // 39 digits
+  BigInteger result("11111111061111110993");
+  CHECK(BigIntegerToString(veryLargeNum.isqrt()) == BigIntegerToString(result));  // 19 digits
 }
 
 TEST_CASE("FACTORIAL") {
@@ -51,6 +44,10 @@ TEST_CASE("FACTORIAL") {
   for (int i = 1; i <= 100; i++) {
     factorial *= i;
   }
+  BigInteger hundretFactorial(
+      "93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976"
+      "156518286253697920827223758251185210916864000000000000000000000000");
+  CHECK(factorial == hundretFactorial);
 }
 
 TEST_CASE("BigInteger Addition") {
@@ -124,8 +121,8 @@ TEST_CASE("Really big one") {
   big_minus_1[big_minus_1.size() - 1] = '8';
   BigInteger a(big);
   CHECK(a.toString() == big);
-  CHECK(a - 1 == BigInteger(big_minus_1)); 
-  CHECK(a * a == (a * (a-1)) + a);
+  CHECK(a - 1 == BigInteger(big_minus_1));
+  CHECK(a * a == (a * (a - 1)) + a);
 }
 TEST_CASE("Big one") {
   REQUIRE((BigInteger(
