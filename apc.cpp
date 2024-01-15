@@ -436,12 +436,6 @@ TEST_CASE("csBIArithmeticsTests:  Minus10IsMinus10") {
   REQUIRE(-BigInteger(10) == BigInteger(-10));
 }
 
-TEST_CASE("csBIArithmeticsTests:  ZeroLessThanOne") {
-  // cout << "will compare 0 and 1" << endl;
-  BigInteger big0(0);
-  BigInteger big1(1);
-}
-
 TEST_CASE("csBIArithmeticsTests:  OneGreaterThanZero") { REQUIRE(BigInteger(1) > BigInteger(0)); }
 
 TEST_CASE("csBIArithmeticsTests:  NotZeroGreaterThanOne") {
@@ -532,36 +526,146 @@ TEST_CASE("csBIArithmeticsTests:  TenModMinus5Equals0") {
   REQUIRE(10 % -5 == 0);  // c++ standard, same thing
   REQUIRE(BigInteger(10) % BigInteger(-5) == BigInteger(0));
 }
-/* TEST_CASE("BIG_rational") { */
-/*   BigRational
- * a("123456789123456789167891234567891234567891234567891233456786789123456789123456782"); */
-/*   BigRational
- * b("123456789123345678678912345678912345678212345678912345678916789123456789123456789"); */
-/*  */
-/*   CHECK(a + b ==
- * BigRational("24691357824680246984691357824680246984671152415787532691752533578246913578246913578"));
- */
-/* } */
-
 TEST_CASE("csBIArithmeticsTests:  TenModTwoEqualsZero") {
   REQUIRE(BigInteger(10) % BigInteger(2) == BigInteger(0));
 }
 
 TEST_CASE("BigInteger Division2") {
-  // Large number division
   CHECK(BigInteger("123456789123456789123456789") / BigInteger("123456789") ==
         BigInteger("1000000001000000001"));
-
-  // Division by a smaller number
   CHECK(BigInteger("1000000000000") / BigInteger("1000") == BigInteger("1000000000"));
-
-  // Small number divided by a large number
   CHECK(BigInteger("1000") / BigInteger("1000000000000") == BigInteger("0"));
-
-  // Negative number division
   CHECK(BigInteger("-123456789123456789123456789") / BigInteger("123456789") ==
         BigInteger("-1000000001000000001"));
-
-  // Division by zero (should throw)
   CHECK_THROWS(BigInteger("123456789") / BigInteger("0"));
 }
+
+TEST_CASE("BigRational Basic Addition") {
+  BigRational a(1, 2);         // Represents 1/2
+  BigRational b(1, 3);         // Represents 1/3
+  BigRational expected(5, 6);  // Expected result is 5/6
+  CHECK(a + b == expected);
+}
+
+TEST_CASE("BigRational Basic Subtraction") {
+  BigRational a(3, 4);         // Represents 3/4
+  BigRational b(1, 4);         // Represents 1/4
+  BigRational expected(1, 2);  // Expected result is
+  CHECK(a - b == expected);
+}
+TEST_CASE("BigRational Multiplication with Negative Numbers") {
+  BigRational a(-3, 7);  // Represents -3/7
+  BigRational b(2, 5);   // Represents 2/5
+  BigRational expected(-6, 35);  // Expected result is -6/35
+  CHECK(a * b == expected);
+}
+
+TEST_CASE("BigRational Division and Simplification") {
+  BigRational a(4, 6);  // Represents 4/6
+  BigRational b(2, 3);  // Represents 2/3
+  BigRational expected(1, 1);  // Expected result is 1/1 or 1
+  CHECK(a / b == expected);
+}
+
+TEST_CASE("BigRational Equality Check") {
+  BigRational a(8, 12);  // Represents 8/12
+  BigRational b(2, 3);   // Represents 2/3
+  CHECK(a == b);  // They are equal when simplified
+}
+
+TEST_CASE("BigRational Inequality Check") {
+  BigRational a(1, 3);  // Represents 1/3
+  BigRational b(1, 2);  // Represents 1/2
+  CHECK(a < b);  // 1/3 is less than 1/2
+}
+TEST_CASE("BigRational Zero Denominator Check") {
+  CHECK_THROWS(BigRational(1, 0));  // Should throw an exception
+}
+TEST_CASE("BigRational Negative Denominator Check") {
+  BigRational a(-1, -2);  // Represents -1/-2
+  BigRational expected(1, 2);  // Expected result is 1/2
+  CHECK(a == expected);
+}
+TEST_CASE("BigRational Large Number Addition") {
+  BigRational a("123456789123456789", "987654321987654321");
+  BigRational b("987654321987654321", "123456789123456789");
+  BigRational expected("12230896747409402", "1505341124847349");  // Calculated result
+  CHECK(a + b == expected);
+}
+TEST_CASE("BigRational Mixed Operations") {
+  BigRational a("1", "2"), b("1", "3"), c("1", "4");
+  CHECK(a + b - c == BigRational("7", "12"));
+}
+TEST_CASE("BigRational Division by Zero") {
+  BigRational a("1", "2");
+  CHECK_THROWS(a / BigRational("0", "1"));
+}
+
+TEST_CASE("BigRational Zero Comparison Equal") {
+  CHECK(BigRational("0", "1") == BigRational("0", "2"));
+}
+
+TEST_CASE("BigRational Zero Comparison Not Equal") {
+  CHECK(BigRational("0", "1") != BigRational("1", "2"));
+}
+TEST_CASE("BigRational One Comparison Equal") {
+  CHECK(BigRational("1", "1") == BigRational("2", "2"));
+}
+
+TEST_CASE("BigRational One Comparison Not Equal") {
+  CHECK(BigRational("1", "1") != BigRational("1", "2"));
+}
+TEST_CASE("BigRational Negative One Comparison Equal") {
+  CHECK(BigRational("-1", "1") == BigRational("2", "-2"));
+}
+
+TEST_CASE("BigRational Negative One Comparison Not Equal") {
+  CHECK(BigRational("-1", "1") != BigRational("1", "1"));
+}
+TEST_CASE("BigRational Fraction Comparison Equal") {
+  CHECK(BigRational("1", "2") == BigRational("2", "4"));
+}
+
+TEST_CASE("BigRational Fraction Comparison Not Equal") {
+  CHECK(BigRational("1", "2") != BigRational("3", "4"));
+}
+TEST_CASE("BigRational Large Number Comparison Equal") {
+  CHECK(BigRational("123456789", "123456789") == BigRational("246913578", "246913578"));
+}
+
+TEST_CASE("BigRational Mixed Sign Comparison Equal") {
+  CHECK(BigRational("-1", "2") == BigRational("1", "-2"));
+}
+
+TEST_CASE("BigRational Mixed Sign Comparison Not Equal") {
+  CHECK(BigRational("-1", "2") != BigRational("1", "2"));
+}
+TEST_CASE("BigRational Zero Numerator Comparison Equal") {
+  CHECK(BigRational("0", "123456789") == BigRational("0", "987654321"));
+}
+
+TEST_CASE("BigRational Zero Numerator Comparison Not Equal") {
+  CHECK(BigRational("0", "123456789") != BigRational("1", "123456789"));
+}
+TEST_CASE("BigRational One Denominator Comparison Equal") {
+  CHECK(BigRational("123456789", "1") == BigRational("123456789", "1"));
+}
+
+TEST_CASE("BigRational One Denominator Comparison Not Equal") {
+  CHECK(BigRational("123456789", "1") != BigRational("987654321", "1"));
+}
+TEST_CASE("BigRational Negative Denominator Comparison Equal") {
+  CHECK(BigRational("1", "-1") == BigRational("-1", "1"));
+}
+
+TEST_CASE("BigRational Negative Denominator Comparison Not Equal") {
+  CHECK(BigRational("1", "-1") != BigRational("1", "1"));
+}
+TEST_CASE("BigRational Complex Fraction Comparison Equal") {
+  CHECK(BigRational("1", "3") == BigRational("2", "6"));
+}
+
+TEST_CASE("BigRational Complex Fraction Comparison Not Equal") {
+  CHECK(BigRational("1", "3") != BigRational("1", "6"));
+}
+
