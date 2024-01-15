@@ -28,8 +28,6 @@ constexpr auto digit_size = UINT32_WIDTH;
 using d_digit = uint64_t;
 // [d_idigit] - signed double digit
 using d_idigit = int64_t;
-// NOTE: when you want to redefine digit type, you need to redefine constructor of
-// BigInteger(int64_t)
 
 class BigInteger {
   friend std::ostream &operator<<(std::ostream &lhs, const BigInteger &rhs);
@@ -53,13 +51,12 @@ class BigInteger {
   friend BigInteger operator/(const BigInteger &lhs, digit rhs);
   friend BigInteger operator%(BigInteger lhs, const BigInteger &rhs);
   friend BigInteger left_shift(BigInteger number, size_t shift);
-  friend BigInteger left_shift(BigInteger number, size_t shift);
 
  public:
-  std::vector<digit> digits;  // Least Significant Digit first in vector
   bool negative;
+  std::vector<digit> digits;  // Least Significant Digit first in vector
 
-  BigInteger() : digits(1, 0), negative(false) {}
+  BigInteger() : negative(false), digits(1, 0) {}
   BigInteger(int64_t value) : negative(value < 0), digits(1, 0) {
     if (value == std::numeric_limits<int64_t>::min()) {
       digits[0] = 1;
@@ -94,23 +91,6 @@ class BigInteger {
   }
   BigInteger(const BigInteger &other) = default;
   BigInteger &operator=(const BigInteger &rhs) = default;
-  // Add {value} to the digit at position {pos} in the number. Handle carry. Position is from least
-  // significant digit.
-  inline void add_to_digit(digit value, size_t pos) {
-    if (pos >= digits.size()) digits.resize(pos + 1, 0);
-
-    digit carry = value;
-    for (; pos < size(); pos++) digits[pos] = add2(digits[pos], carry, &carry);
-
-    if (carry != 0) digits.push_back(carry);
-    trim();
-  }
-  /* Assumes that number have enough space to add value to the digit at position pos (assuming
-   * oberflov). */
-  inline void add_to_digit_unsafe(digit value, size_t pos) {
-    digit carry = value;
-    for (; pos < digits.size(); pos++) digits[pos] = add2(digits[pos], carry, &carry);
-  }
   const BigInteger &operator+() const { return *this; }
   digit to_digit() const {
     if (negative) throw std::runtime_error("Cannot convert negative number to digit");
@@ -149,7 +129,6 @@ class BigInteger {
       x >>= 1;
       ++count;
     }
-
     return digit_size - count;
   }
   size_t count_leading_zeros() const {
@@ -159,12 +138,13 @@ class BigInteger {
       x >>= 1;
       ++count;
     }
-
     return digit_size - count;
   }
   void normalize() {
     trim();
-    if (is_zero()) return;
+    if (is_zero())
+      throw std::runtime_error(
+          "Cannot normalize zero. Something went wrong if zero is being normalized");
     *this = left_shift(*this, count_leading_zeros());
   }
   BigInteger toNormalized() const {
@@ -205,7 +185,6 @@ class BigInteger {
     if (is_zero()) return "0";
     auto temp = *this;
     std::string result;
-    // TODO: Improve this. What if this will fail?
     result.reserve(digits.size() * (std::log10(digit_max) + 1));  // Estimated reserve
 
     while (temp.size() > 1 || temp[0] != 0) {
@@ -221,13 +200,13 @@ class BigInteger {
     while (!digits.empty() && digits.back() == 0) digits.pop_back();
     if (digits.empty()) digits.push_back(0);
   }
+  /* Remove leading zero digits */
   inline BigInteger rlz() {
     trim();
     return *this;
   }
   // Shift digits to the left by {digit_shift} digits. If {digit_shift} is 0, do nothing.
   inline void left_shift_digit(size_t digit_shift = 1) {
-    // NOTE: This function assumes that the number have no leading zeros
     digits.resize(digits.size() + digit_shift, 0);
     for (size_t shift = 0; shift < digit_shift; ++shift) {
       digit temp = 0;
@@ -254,7 +233,7 @@ class BigInteger {
     return result;
   }
   double sqrt() const {
-    if (negative) throw std::domain_error("Square root of a negative number is not defined");
+    if (negative) throw std::domain_error("Square root of a negative number is not real");
     return std::sqrt(static_cast<double>(*this));
   }
   explicit operator double() const {
@@ -543,21 +522,6 @@ inline BigInteger operator*(const BigInteger &lhs, const digit rhs) {
   result.negative = lhs.negative;
   return result.rlz();
 }
-// Old implementation of multiplication. This version passes tests in 15-16 seconds, while the new
-// one - 2-3 seconds.
-/* inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) { */
-/*   if (lhs.is_zero() || rhs.is_zero()) return BigInteger(0); */
-/*   BigInteger result, carries; */
-/*   result.digits.resize(lhs.size() + rhs.size(), 0); */
-/*   for (size_t i = 0; i < lhs.size(); ++i) { */
-/*     for (size_t j = 0; j < rhs.size(); ++j) { */
-/*       d_digit product = (d_digit)lhs.digits[i] * (d_digit)rhs.digits[j]; */
-/*       result.add_to_digit_unsafe(product & digit_max, i + j); */
-/*       result.add_to_digit_unsafe(product >> digit_size, i + j + 1); */
-/*     } */
-/*   } */
-/*   result.negative = lhs.negative ^ rhs.negative; */
-/*   return result.rlz(); */
 /* } */
 inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
   if (lhs.is_zero() || rhs.is_zero()) return BigInteger(0);
@@ -729,41 +693,46 @@ inline std::istream &operator>>(std::istream &lhs, BigInteger &rhs) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class BigRational {
  public:
-  BigInteger numerator = BigInteger(0);
-  BigInteger denominator = BigInteger(1);
-  bool isNegative = false;
+  BigInteger numerator;
+  BigInteger denominator;
+  bool negative;
   // constructors
   BigRational() {
     numerator = BigInteger(0);
     denominator = BigInteger(1);
-    isNegative = false;
+    negative = false;
   };
   BigRational(int64_t a, int64_t b) {
-    numerator = BigInteger(a);
-    denominator = BigInteger(b);
+    negative = (a < 0) ^ (b < 0);
+    numerator = ABS(BigInteger(a));
+    denominator = ABS(BigInteger(b));
+    if (denominator.is_zero()) throw std::runtime_error("Denominator cannot be zero");
+    *this = to_normalized();
   };
   BigRational(const std::string &a, const std::string &b) {
-    numerator = BigInteger(a);
-    denominator = BigInteger(b);
+    BigInteger a_BigInt(a), b_BigInt(b);
+    negative = (a_BigInt.negative) ^ (b_BigInt.negative);
+    numerator = ABS(a_BigInt);
+    denominator = ABS(b_BigInt);
+    if (denominator.is_zero()) throw std::runtime_error("Denominator cannot be zero");
+    *this = to_normalized();
   };
-  // copy
   BigRational(const BigRational &other) {
     numerator = other.numerator;
     denominator = other.denominator;
-    isNegative = other.isNegative;
+    negative = other.negative;
   };
   BigRational &operator=(const BigRational &rhs) {
     numerator = rhs.numerator;
     denominator = rhs.denominator;
-    isNegative = rhs.isNegative;
+    negative = rhs.negative;
     return *this;
   };
-  // unary operators
   const BigRational &operator+() const { return *this; };
   BigRational operator-() const {
     BigRational result = *this;
-    result.isNegative = !result.isNegative;
-    return result;
+    result.negative = !result.negative;
+    return result.to_normalized();
   };
   // binary arithmetics operators
   BigRational &operator+=(const BigRational &rhs) {
@@ -782,32 +751,45 @@ class BigRational {
   double sqrt() const;
 
   bool isZero() const { return numerator.is_zero(); }
+  // Find greatest common divisor
+  static BigInteger gcd(const BigInteger &a, const BigInteger &b) {
+    BigInteger x = a;
+    BigInteger y = b;
+    while (!y.is_zero()) {
+      BigInteger temp = y;
+      y = x % y;
+      x = temp;
+    }
+    return x;
+  }
 
-  BigInteger gcd(BigInteger numerator, BigInteger denominator) const {
-    while (!denominator.is_zero()) {
-      BigInteger temp = denominator;
-      denominator = numerator % denominator;
-      numerator = temp;
+  inline BigRational to_normalized() const {
+    BigRational result = *this;
+    if (denominator.is_zero()) throw std::runtime_error("Denominator cannot be zero");
+    if (numerator.is_zero()) {
+      result.numerator = BigInteger(0);
+      result.denominator = BigInteger(1);
+      return result;
+    }
+    BigInteger gcdValue = gcd(result.numerator, result.denominator);
+    result.numerator /= gcdValue;
+    result.denominator /= gcdValue;
+    if (result.denominator < BigInteger(0)) {
+      // Ensure the denominator is positive
+      result.denominator = -result.denominator;
+      result.numerator = -result.numerator;
     }
 
-    return numerator;
-  }
-
-  BigRational normalize() const {
-    BigRational result = *this;
-    result.numerator.negative = false;
-    result.denominator.negative = false;
-    BigInteger gcd = result.gcd(result.numerator, result.denominator);
-    result.numerator /= gcd;
-    result.denominator /= gcd;
     return result;
   }
+
+  bool is_zero() const { return numerator.is_zero(); }
 
   BigRational addAbs(const BigRational &lhs, const BigRational &rhs) const {
     BigRational result;
     result.denominator = lhs.denominator * rhs.denominator;
     result.numerator = lhs.numerator * rhs.denominator + rhs.numerator * lhs.denominator;
-    return result.normalize();
+    return result.to_normalized();
   }
 
   friend bool operator<(const BigRational &lhs, const BigRational &rhs);
@@ -824,91 +806,80 @@ inline BigRational operator+(BigRational lhs, const BigRational &rhs) {
   } else if (rhs.numerator.is_zero()) {
     return lhs;
   }
-  if (lhs.isNegative && !rhs.isNegative) {  // -a + b = b - a
+  if (lhs.negative && !rhs.negative) {  // -a + b = b - a
     return rhs - (-lhs);
-  } else if (!lhs.isNegative && rhs.isNegative) {  // a + (-b) = a - b
+  } else if (!lhs.negative && rhs.negative) {  // a + (-b) = a - b
     return lhs - (-rhs);
   } else {  // a + b or -a + (-b)
     BigRational temp = rhs, temp2 = lhs;
-    temp.isNegative = false;
-    temp2.isNegative = false;
+    temp.negative = false;
+    temp2.negative = false;
     BigRational result = lhs.addAbs(temp2, temp);
-    result.isNegative = lhs.isNegative && rhs.isNegative;
-    return result;
+    result.negative = lhs.negative && rhs.negative;
+    return result.to_normalized();
   }
 };
 inline BigRational operator-(BigRational lhs, const BigRational &rhs) {
   if (lhs.numerator.is_zero()) {
     BigRational result = rhs;
-    result.isNegative = !result.isNegative;
-    return result.normalize();
+    result.negative = !result.negative;
+    return result.to_normalized();
   }
   if (rhs.numerator.is_zero()) return lhs;
 
   BigRational result;
   result.denominator = lhs.denominator * rhs.denominator;
   result.numerator = lhs.numerator * rhs.denominator - rhs.numerator * lhs.denominator;
-  result.isNegative = lhs.isNegative ^ rhs.isNegative;
-  return result.normalize();
+  result.negative = lhs.negative ^ rhs.negative;
+  return result.to_normalized();
 };
 inline BigRational operator*(BigRational lhs, const BigRational &rhs) {
   BigRational result;
   result.numerator = lhs.numerator * rhs.numerator;
   result.denominator = lhs.denominator * rhs.denominator;
-  result.isNegative = lhs.isNegative ^ rhs.isNegative;
-  return result.normalize();
+  result.negative = lhs.negative ^ rhs.negative;
+  return result.to_normalized();
 };
 inline BigRational operator/(const BigRational lhs, const BigRational &rhs) {
+  if (rhs.numerator.is_zero()) throw std::runtime_error("Division by zero");
   BigRational result;
   result.numerator = lhs.numerator * rhs.denominator;
   result.denominator = lhs.denominator * rhs.numerator;
-  result.isNegative = lhs.isNegative ^ rhs.isNegative;
-  return result.normalize();
+  result.negative = lhs.negative ^ rhs.negative;
+  return result.to_normalized();
 };
 inline bool operator==(const BigRational &lhs, const BigRational &rhs) {
-  lhs.normalize();
-  rhs.normalize();
-  if (lhs.isZero() && rhs.isZero()) {
-    return true;
-  }
-
-  if (lhs.numerator != rhs.numerator) {
-    return false;
-  }
-
-  if (lhs.denominator != rhs.denominator) {
-    return false;
-  }
-
+  auto lhs_norm = lhs.to_normalized();
+  auto rhs_norm = rhs.to_normalized();
+  if (lhs_norm.isZero() && rhs_norm.isZero()) return true;
+  if (lhs_norm.negative != rhs_norm.negative) return false;
+  if (lhs_norm.numerator != rhs_norm.numerator) return false;
+  if (lhs_norm.denominator != rhs_norm.denominator) return false;
   return true;
 }
 inline bool operator!=(const BigRational &lhs, const BigRational &rhs) { return !(lhs == rhs); };
 inline bool operator<(const BigRational &lhs, const BigRational &rhs) {
-  if (lhs.isNegative && !rhs.isNegative) return true;
-  if (!lhs.isNegative && rhs.isNegative) return false;
+  if (lhs.negative && !rhs.negative) return true;
+  if (!lhs.negative && rhs.negative) return false;
 
-  if (lhs.isNegative && rhs.isNegative) {
-    lhs.normalize();
-    rhs.normalize();
-    return lhs.numerator * rhs.denominator > rhs.numerator * lhs.denominator;
+  auto lhs_norm = lhs.to_normalized();
+  auto rhs_norm = rhs.to_normalized();
+  if (lhs.negative && rhs.negative) {
+    return lhs_norm.numerator * rhs_norm.denominator > rhs_norm.numerator * lhs_norm.denominator;
   } else {
-    lhs.normalize();
-    rhs.normalize();
-    return lhs.numerator * rhs.denominator < rhs.numerator * lhs.denominator;
+    return lhs_norm.numerator * rhs_norm.denominator < rhs_norm.numerator * lhs_norm.denominator;
   }
 }
 inline bool operator>(const BigRational &lhs, const BigRational &rhs) {
-  if (lhs.isNegative && !rhs.isNegative) return false;
-  if (!lhs.isNegative && rhs.isNegative) return true;
+  if (lhs.negative && !rhs.negative) return false;
+  if (!lhs.negative && rhs.negative) return true;
 
-  if (lhs.isNegative && rhs.isNegative) {
-    lhs.normalize();
-    rhs.normalize();
-    return lhs.numerator * rhs.denominator < rhs.numerator * lhs.denominator;
+  auto lhs_norm = lhs.to_normalized();
+  auto rhs_norm = rhs.to_normalized();
+  if (lhs.negative && rhs.negative) {
+    return lhs_norm.numerator * rhs_norm.denominator < rhs_norm.numerator * lhs_norm.denominator;
   } else {
-    lhs.normalize();
-    rhs.normalize();
-    return lhs.numerator * rhs.denominator > rhs.numerator * lhs.denominator;
+    return lhs_norm.numerator * rhs_norm.denominator > rhs_norm.numerator * lhs_norm.denominator;
   }
 };
 inline bool operator<=(const BigRational &lhs, const BigRational &rhs) {
@@ -926,7 +897,21 @@ inline std::ostream &operator<<(std::ostream &lhs, const BigRational &rhs) {
 #if SUPPORT_IFSTREAM == 1
 // this should behave exactly the same as reading int with respect to
 // whitespace, consumed characters etc...
-inline std::istream &operator>>(std::istream &lhs, BigRational &rhs);  // bonus
+// NOTE: I expect the input to be in the form of "numerator/denominator"
+inline std::istream &operator>>(std::istream &lhs, BigRational &rhs){
+  std::string input;
+  lhs >> input;
+  try {
+    size_t slash_pos = input.find('/');
+    if (slash_pos == std::string::npos) throw std::invalid_argument("Invalid BigRational string");
+    std::string numerator = input.substr(0, slash_pos);
+    std::string denominator = input.substr(slash_pos + 1);
+    rhs = BigRational(numerator, denominator);
+  } catch (const std::invalid_argument &e) {
+    lhs.setstate(std::ios::failbit);
+  }
+  return lhs;
+}
 #endif
 
 #if SUPPORT_EVAL == 1
