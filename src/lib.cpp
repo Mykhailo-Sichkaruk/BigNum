@@ -1,4 +1,3 @@
-#pragma once
 #include <stdint.h>
 
 #include <algorithm>
@@ -37,17 +36,16 @@ class BigInteger {
   friend bool operator>=(const BigInteger &lhs, const BigInteger &rhs);
   friend bool operator==(const BigInteger &lhs, const BigInteger &rhs);
   friend bool operator==(const BigInteger &lhs, digit rhs);
-  friend bool operator==(const BigInteger &lhs, const int rhs);
   friend bool operator!=(const BigInteger &lhs, const BigInteger &rhs);
   friend BigInteger operator+(const BigInteger lhs, const BigInteger &rhs);
   friend BigInteger operator+(const BigInteger lhs, const digit rhs);
   friend BigInteger operator+(const BigInteger lhs, const int rhs);
   friend BigInteger operator*(const BigInteger lhs, const BigInteger &rhs);
   friend BigInteger operator*(const BigInteger &lhs, const digit rhs);
-  friend BigInteger operator-(BigInteger lhs, const BigInteger &rhs);
-  friend BigInteger operator-(BigInteger lhs, digit rhs);
-  friend BigInteger operator-(BigInteger lhs, const int rhs);
-  friend BigInteger operator/(BigInteger lhs, const BigInteger &rhs);
+  friend BigInteger operator-(const BigInteger lhs, const BigInteger &rhs);
+  friend BigInteger operator-(const BigInteger lhs, digit rhs);
+  friend BigInteger operator-(const BigInteger lhs, int rhs);
+  friend BigInteger operator/(const BigInteger lhs, const BigInteger &rhs);
   friend BigInteger operator/(const BigInteger &lhs, digit rhs);
   friend BigInteger operator%(BigInteger lhs, const BigInteger &rhs);
   friend BigInteger left_shift(BigInteger number, size_t shift);
@@ -579,12 +577,6 @@ BigInteger operator/(const BigInteger &lhs, digit rhs) {
 
   return result.rlz();
 }
-static inline digit digit_div(digit high, digit low, digit divisor, digit *remainder) {
-  d_digit dividend = ((d_digit)high << digit_size) + (d_digit)low;
-  d_digit quotient = dividend / divisor;
-  *remainder = dividend % divisor;
-  return quotient;
-}
 inline BigInteger operator/(const BigInteger lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) throw std::runtime_error("Division by zero");
   if (lhs.is_zero()) return BigInteger(0);
@@ -898,7 +890,7 @@ inline std::ostream &operator<<(std::ostream &lhs, const BigRational &rhs) {
 // this should behave exactly the same as reading int with respect to
 // whitespace, consumed characters etc...
 // NOTE: I expect the input to be in the form of "numerator/denominator"
-inline std::istream &operator>>(std::istream &lhs, BigRational &rhs){
+inline std::istream &operator>>(std::istream &lhs, BigRational &rhs) {
   std::string input;
   lhs >> input;
   try {
@@ -917,3 +909,5 @@ inline std::istream &operator>>(std::istream &lhs, BigRational &rhs){
 #if SUPPORT_EVAL == 1
 inline BigInteger eval(const std::string &);
 #endif
+
+std::string BigIntegerToString(const BigInteger &number) { return number.toString(); }

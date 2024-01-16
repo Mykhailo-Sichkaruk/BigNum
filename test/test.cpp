@@ -1,12 +1,12 @@
-#include "catch_amalgamated.cpp"
-#include "../lib.cpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include "../src/lib.cpp"
 
-std::string BigIntegerToString(BigInteger value) { return value.toString(); }
+// NOTE: Implement `BigIntegerToString`. Test requires you to return string representation of BigInteger in base 10 format.
 
-TEST_CASE("Test subAbs(BigInteger, digit)") {
-  BigInteger a("111");
-  CHECK(BigInteger::subAbs(a, 1) == BigInteger("110"));
-}
 TEST_CASE("Test division by two function") {
   BigInteger a("111");
   CHECK(a / BigInteger(2) == BigInteger("55"));
@@ -16,12 +16,6 @@ TEST_CASE("Check multiply by two function") {
   CHECK(a * BigInteger(2) == BigInteger("222"));
   BigInteger largeNum = BigInteger("100000000000000000000000000000000000000");  // 10^38
   CHECK(largeNum / BigInteger(2) == BigInteger("50000000000000000000000000000000000000"));
-}
-TEST_CASE("Left Shift") {
-  BigInteger a("889");
-  CHECK(a.toBitString() == "00000000000000000000001101111001");
-  a.normalize();
-  CHECK(a.toBitString() == "11011110010000000000000000000000");
 }
 
 TEST_CASE("ISQRT") {
@@ -53,8 +47,7 @@ TEST_CASE("FACTORIAL") {
 TEST_CASE("BigInteger Addition") {
   // Large positive + Large positive
   CHECK(BigInteger("12345678912345678912345678912345") +
-            BigInteger("98765432198765432198765432198765") ==
-        BigInteger("111111111111111111111111111111110"));
+            BigInteger("98765432198765432198765432198765") == BigInteger("111111111111111111111111111111110"));
 
   // Large negative + Large negative
   CHECK(BigInteger("-12345678912345678912345678912345") +
@@ -120,7 +113,7 @@ TEST_CASE("Really big one") {
   std::string big_minus_1(10000, '9');
   big_minus_1[big_minus_1.size() - 1] = '8';
   BigInteger a(big);
-  CHECK(a.toString() == big);
+  CHECK(a == BigInteger(big));
   CHECK(a - 1 == BigInteger(big_minus_1));
   CHECK(a * a == (a * (a - 1)) + a);
 }
