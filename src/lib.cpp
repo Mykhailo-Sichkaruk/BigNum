@@ -37,18 +37,18 @@ class BigInteger {
   friend bool operator==(const BigInteger &lhs, const BigInteger &rhs);
   friend bool operator==(const BigInteger &lhs, digit rhs);
   friend bool operator!=(const BigInteger &lhs, const BigInteger &rhs);
-  friend BigInteger operator+(const BigInteger lhs, const BigInteger &rhs);
-  friend BigInteger operator+(const BigInteger lhs, const digit rhs);
-  friend BigInteger operator+(const BigInteger lhs, const int rhs);
-  friend BigInteger operator*(const BigInteger lhs, const BigInteger &rhs);
+  friend BigInteger operator+(const BigInteger &lhs, const BigInteger &rhs);
+  friend BigInteger operator+(const BigInteger &lhs, const digit rhs);
+  friend BigInteger operator+(const BigInteger &lhs, const int rhs);
+  friend BigInteger operator*(const BigInteger &lhs, const BigInteger &rhs);
   friend BigInteger operator*(const BigInteger &lhs, const digit rhs);
-  friend BigInteger operator-(const BigInteger lhs, const BigInteger &rhs);
-  friend BigInteger operator-(const BigInteger lhs, digit rhs);
-  friend BigInteger operator-(const BigInteger lhs, int rhs);
-  friend BigInteger operator/(const BigInteger lhs, const BigInteger &rhs);
+  friend BigInteger operator-(const BigInteger &lhs, const BigInteger &rhs);
+  friend BigInteger operator-(const BigInteger &lhs, digit rhs);
+  friend BigInteger operator-(const BigInteger &lhs, int rhs);
+  friend BigInteger operator/(const BigInteger &lhs, const BigInteger &rhs);
   friend BigInteger operator/(const BigInteger &lhs, digit rhs);
-  friend BigInteger operator%(BigInteger lhs, const BigInteger &rhs);
-  friend BigInteger left_shift(BigInteger number, size_t shift);
+  friend BigInteger operator%(const BigInteger &lhs, const BigInteger &rhs);
+  friend BigInteger left_shift(const BigInteger &number, size_t shift);
 
  public:
   bool negative;
@@ -393,17 +393,13 @@ inline std::ostream &operator<<(std::ostream &lhs, const BigInteger &rhs) {
   lhs << rhs.toString();
   return lhs;
 }
-inline std::ostream &operator<<(std::ostream &lhs, BigInteger rhs) {
-  lhs << rhs.toString();
-  return lhs;
-}
 inline BigInteger ABS(const BigInteger &number) {
   BigInteger result = number;
   result.negative = false;
   return result;
 }
 // Returns new BigInteger with digits shifted left by shift, if number is zero return zero
-BigInteger left_shift(const BigInteger number, const size_t shift) {
+BigInteger left_shift(const BigInteger &number, const size_t shift) {
   if (number.is_zero()) return number;
   if (shift == 0) return number;
 
@@ -433,13 +429,13 @@ BigInteger left_shift(const BigInteger number, const size_t shift) {
 
   return result.rlz();
 }
-inline BigInteger operator+(const BigInteger lhs, digit rhs) {
+inline BigInteger operator+(const BigInteger &lhs, digit rhs) {
   if (lhs.is_zero()) return BigInteger(rhs);
   if (rhs == 0) return lhs;
   if (lhs.negative) return BigInteger(rhs) - (-lhs);
   return BigInteger::add_abs(lhs, rhs);
 }
-inline BigInteger operator+(const BigInteger lhs, const int rhs) {
+inline BigInteger operator+(const BigInteger &lhs, const int rhs) {
   if (lhs.is_zero()) return BigInteger(rhs);
   if (rhs == 0) return lhs;
   if (lhs.negative && rhs > 0) return BigInteger(rhs) - (-lhs);  // (-a) + b = b - a
@@ -447,7 +443,7 @@ inline BigInteger operator+(const BigInteger lhs, const int rhs) {
   if (lhs.negative && rhs < 0) return -((-lhs) + (-rhs));        // (-a) + (-b) = -(a + b)
   return BigInteger::add_abs(lhs, rhs);
 }
-inline BigInteger operator+(const BigInteger lhs, const BigInteger &rhs) {
+inline BigInteger operator+(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero()) return rhs;
   if (rhs.is_zero()) return lhs;
   if (lhs.negative && !rhs.negative) return rhs - (-lhs);
@@ -463,7 +459,7 @@ inline BigInteger operator-(const BigInteger &lhs, const digit rhs) {
   if (lhs.negative) return -((-lhs) + rhs);
   return BigInteger::subAbs(lhs, rhs);
 }
-inline digit operator-(const digit lhs, const BigInteger rhs) {
+inline digit operator-(const digit lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) return BigInteger(lhs).to_digit();
   if (lhs == 0) return -rhs.to_digit();
   if (rhs.negative) return -((-rhs) + BigInteger(static_cast<int64_t>(lhs))).to_digit();
@@ -472,7 +468,7 @@ inline digit operator-(const digit lhs, const BigInteger rhs) {
   result.negative = true;
   return result.rlz().to_digit();
 }
-inline BigInteger operator-(const BigInteger lhs, const int rhs) {
+inline BigInteger operator-(const BigInteger &lhs, const int rhs) {
   if (lhs.is_zero()) return BigInteger(-rhs);
   if (rhs == 0) return lhs;
   if (lhs.negative && rhs > 0) return -((-lhs) + rhs);     // (-a) - b = -(a + b)
@@ -480,7 +476,7 @@ inline BigInteger operator-(const BigInteger lhs, const int rhs) {
   if (lhs.negative && rhs < 0) return -((-lhs) - (-rhs));  // (-a) - (-b) = b - a
   return BigInteger::subAbs(lhs, static_cast<digit>(rhs));
 }
-inline BigInteger operator-(BigInteger lhs, const BigInteger &rhs) {
+inline BigInteger operator-(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero()) return -rhs;
   if (rhs.is_zero()) return lhs;
   if (lhs == rhs) return BigInteger(0);
@@ -521,7 +517,7 @@ inline BigInteger operator*(const BigInteger &lhs, const digit rhs) {
   return result.rlz();
 }
 /* } */
-inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
+inline BigInteger operator*(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero() || rhs.is_zero()) return BigInteger(0);
   if (lhs == 1) return rhs;
   if (rhs == 1) return lhs;
@@ -536,7 +532,7 @@ inline BigInteger operator*(const BigInteger lhs, const BigInteger &rhs) {
   result.negative = lhs.negative ^ rhs.negative;
   return result.rlz();
 }
-inline BigInteger operator^(const BigInteger lhs, const size_t rhs) {
+inline BigInteger operator^(const BigInteger &lhs, const size_t rhs) {
   if (rhs == 0) return BigInteger(1);
   if (rhs == 1) return lhs;
   BigInteger result = lhs;
@@ -545,7 +541,7 @@ inline BigInteger operator^(const BigInteger lhs, const size_t rhs) {
   }
   return result;
 }
-inline BigInteger operator%(const BigInteger lhs, const BigInteger &rhs) {
+inline BigInteger operator%(const BigInteger &lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) throw std::runtime_error("Division by zero");
   auto quotient = lhs / rhs;
   auto remainder = ABS(lhs) - ABS(quotient * rhs);
@@ -577,7 +573,7 @@ BigInteger operator/(const BigInteger &lhs, digit rhs) {
 
   return result.rlz();
 }
-inline BigInteger operator/(const BigInteger lhs, const BigInteger &rhs) {
+inline BigInteger operator/(const BigInteger &lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) throw std::runtime_error("Division by zero");
   if (lhs.is_zero()) return BigInteger(0);
   if (lhs == 1) return BigInteger(1);
@@ -689,18 +685,12 @@ class BigRational {
   BigInteger denominator;
   bool negative;
   // constructors
-  BigRational() {
-    numerator = BigInteger(0);
-    denominator = BigInteger(1);
-    negative = false;
-  };
-  BigRational(int64_t a, int64_t b) {
-    negative = (a < 0) ^ (b < 0);
-    numerator = ABS(BigInteger(a));
-    denominator = ABS(BigInteger(b));
+  BigRational() : numerator(0), denominator(1), negative(false) {}
+  BigRational(int64_t a, int64_t b)
+      : numerator(ABS(a)), denominator(ABS(b)), negative((a < 0) ^ (b < 0)) {
     if (denominator.is_zero()) throw std::runtime_error("Denominator cannot be zero");
     *this = to_normalized();
-  };
+  }
   BigRational(const std::string &a, const std::string &b) {
     BigInteger a_BigInt(a), b_BigInt(b);
     negative = (a_BigInt.negative) ^ (b_BigInt.negative);
@@ -708,24 +698,15 @@ class BigRational {
     denominator = ABS(b_BigInt);
     if (denominator.is_zero()) throw std::runtime_error("Denominator cannot be zero");
     *this = to_normalized();
-  };
-  BigRational(const BigRational &other) {
-    numerator = other.numerator;
-    denominator = other.denominator;
-    negative = other.negative;
-  };
-  BigRational &operator=(const BigRational &rhs) {
-    numerator = rhs.numerator;
-    denominator = rhs.denominator;
-    negative = rhs.negative;
-    return *this;
-  };
-  const BigRational &operator+() const { return *this; };
+  }
+  BigRational(const BigRational &other) = default;
+  BigRational &operator=(const BigRational &rhs) = default;
+  const BigRational &operator+() const { return *this; }
   BigRational operator-() const {
     BigRational result = *this;
     result.negative = !result.negative;
     return result.to_normalized();
-  };
+  }
   // binary arithmetics operators
   BigRational &operator+=(const BigRational &rhs) {
     *this = *this + rhs;
@@ -741,7 +722,6 @@ class BigRational {
   friend BigRational operator/(BigRational lhs, const BigRational &rhs);
 
   double sqrt() const;
-
   bool isZero() const { return numerator.is_zero(); }
   // Find greatest common divisor
   static BigInteger gcd(const BigInteger &a, const BigInteger &b) {
@@ -873,13 +853,13 @@ inline bool operator>(const BigRational &lhs, const BigRational &rhs) {
   } else {
     return lhs_norm.numerator * rhs_norm.denominator > rhs_norm.numerator * lhs_norm.denominator;
   }
-};
+}
 inline bool operator<=(const BigRational &lhs, const BigRational &rhs) {
   return lhs < rhs || lhs == rhs;
-};
+}
 inline bool operator>=(const BigRational &lhs, const BigRational &rhs) {
   return lhs > rhs || lhs == rhs;
-};
+}
 
 inline std::ostream &operator<<(std::ostream &lhs, const BigRational &rhs) {
   lhs << rhs.numerator.toString() << "/" << rhs.denominator.toString();
