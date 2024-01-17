@@ -629,7 +629,7 @@ inline bool operator==(const BigInteger &lhs, const int rhs) {
   if (lhs.size() > 1) return false;
   if (lhs.is_zero() && rhs == 0) return true;
   if (lhs.negative && rhs > 0) return false;
-  return lhs[0] == std::abs(rhs);
+  return lhs[0] == static_cast<digit>(rhs);
 }
 inline bool operator==(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero() && rhs.is_zero()) return true;
