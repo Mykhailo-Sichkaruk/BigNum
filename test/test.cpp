@@ -662,3 +662,7 @@ TEST_CASE("BigRational Complex Fraction Comparison Not Equal") {
   CHECK(BigRational("1", "3") != BigRational("1", "6"));
 }
 
+TEST_CASE("Fuzz") {
+	BigInteger a("0000000000000000000000000000000000000000");
+}
+

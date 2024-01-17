@@ -23,3 +23,6 @@ Makefile
 *.vcxproj.filters
 *.vcxproj.user
 ipch/
+
+fuzz/corpus/
+fuzz/logs/
