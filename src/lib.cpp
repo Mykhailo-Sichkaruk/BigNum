@@ -27,6 +27,8 @@ constexpr auto digit_size = UINT32_WIDTH;
 using d_digit = uint64_t;
 // [d_idigit] - signed double digit
 using d_idigit = int64_t;
+// [string_base] - base of string representation
+constexpr digit string_base = 10;
 
 class BigInteger {
   friend std::ostream &operator<<(std::ostream &lhs, const BigInteger &rhs);
@@ -80,7 +82,7 @@ class BigInteger {
       if (std::isdigit(digit) == 0)
         throw std::invalid_argument("Invalid character in BigInteger string");
 
-      *this *= BigInteger(10);
+      *this *= BigInteger(string_base);
       *this += BigInteger(digit - '0');
     }
 
@@ -92,7 +94,7 @@ class BigInteger {
   const BigInteger &operator+() const { return *this; }
   digit to_digit() const {
     if (negative) throw std::runtime_error("Cannot convert negative number to digit");
-    if (digits.size() > 1) throw std::runtime_error("Number too large to be represented as digit");
+    if (size() > 1) throw std::runtime_error("Number too large to be represented as digit");
     return digits[0];
   }
   BigInteger operator-() const {
@@ -145,12 +147,12 @@ class BigInteger {
           "Cannot normalize zero. Something went wrong if zero is being normalized");
     *this = left_shift(*this, count_leading_zeros());
   }
-  BigInteger toNormalized() const {
+  BigInteger to_normalized() const {
     BigInteger result = *this;
     result.normalize();
     return result;
   }
-  std::string toBitString() const {
+  std::string to_bit_string() const {
     std::string result;
     digit current = 0;
     // Pring first digit
@@ -179,15 +181,18 @@ class BigInteger {
     std::reverse(result.begin(), result.end());
     return result;
   }
-  std::string toString() const {
+  std::string to_string() const {
     if (is_zero()) return "0";
     auto temp = *this;
     std::string result;
-    result.reserve(digits.size() * (std::log10(digit_max) + 1));  // Estimated reserve
+    // Calculate the estimated size and explicitly cast it to size_type
+    size_t estimatedSize =
+        static_cast<size_t>(std::ceil(static_cast<double>(size()) * (std::log10(digit_max) + 1)));
+    result.reserve(estimatedSize);  // Estimated reserve
 
     while (temp.size() > 1 || temp[0] != 0) {
-      digit remainder = temp.divideBySingleDigit(10);
-      result.push_back('0' + remainder);
+      digit remainder = temp.divide_by_single_digit(string_base);
+      result.push_back('0' + static_cast<char>(remainder));
     }
     if (negative) result.push_back('-');
 
@@ -205,7 +210,7 @@ class BigInteger {
   }
   // Shift digits to the left by {digit_shift} digits. If {digit_shift} is 0, do nothing.
   inline void left_shift_digit(size_t digit_shift = 1) {
-    digits.resize(digits.size() + digit_shift, 0);
+    digits.resize(size() + digit_shift, 0);
     for (size_t shift = 0; shift < digit_shift; ++shift) {
       digit temp = 0;
       for (size_t i = shift; i < size(); i += digit_shift) {
@@ -215,7 +220,7 @@ class BigInteger {
       }
     }
   }
-  inline BigInteger &multiplyByTwo() {
+  inline BigInteger &multiply_by_two() {
     digit carry = 0;
     for (size_t i = 0; i < size(); ++i) {
       digit current = digits[i];
@@ -225,9 +230,9 @@ class BigInteger {
     if (carry != 0) digits.push_back(carry);
     return *this;
   }
-  BigInteger multiplyByTwo() const {
+  BigInteger multiply_by_two_own() const {
     BigInteger result = *this;
-    result.multiplyByTwo();
+    result.multiply_by_two();
     return result;
   }
   double sqrt() const {
@@ -235,11 +240,17 @@ class BigInteger {
     return std::sqrt(static_cast<double>(*this));
   }
   explicit operator double() const {
-    int num_bits = 0;
-    for (int i = digits.size() - 1; i >= 0; --i) {
-      if (digits[i] != 0) {
-        num_bits = i * digit_size;
-        digit temp = digits[i];
+    size_t num_bits = 0;  // Use size_t to avoid mixing signed and unsigned types
+    if (digits.empty()) {
+      return 0.0;  // Early return if the container is empty
+    }
+
+    // Find the most significant non-zero digit
+    for (size_t i = 0; i < size(); ++i) {
+      size_t rev_i = size() - 1 - i;  // Reverse index
+      if (digits[rev_i] != 0) {
+        num_bits = rev_i * digit_size;
+        digit temp = digits[rev_i];
         while (temp != 0) {
           temp >>= 1;
           num_bits++;
@@ -250,17 +261,19 @@ class BigInteger {
     if (num_bits > 53)
       throw std::overflow_error("BigInteger value too large to be represented as a double");
     double result = 0.0;
-    for (int i = digits.size() - 1; i >= 0; --i) {
+    for (size_t i = 0; i < size(); ++i) {
+      size_t rev_i = size() - 1 - i;  // Reverse index
       result *= static_cast<double>((d_digit)1 << digit_size);
-      result += digits[i];
+      result += digits[rev_i];
     }
+
     if (negative) result = -result;
     return result;
   }
   // Note: if you access digit that is not in the number - you will get Undefined Behavior
   inline digit operator[](size_t index) const {
 #if CHECK_BIGING_BOUNDS == 1
-    if (index >= digits.size()) throw std::out_of_range("Index out of range");
+    if (index >= size()) throw std::out_of_range("Index out of range");
 #endif
     return digits[index];
   }
@@ -302,7 +315,7 @@ class BigInteger {
 
     return result.rlz();
   }
-  static BigInteger subAbs(const BigInteger &lhs, const digit rhs) {
+  static BigInteger substitute_abs(const BigInteger &lhs, const digit rhs) {
     BigInteger result;
     result.digits.resize(lhs.size(), 0);
     bool borrow = false;
@@ -325,7 +338,7 @@ class BigInteger {
 
     return result.rlz();
   }
-  static BigInteger add_abs(const BigInteger &lhs, const digit rhs) {
+  static BigInteger add_abs_digit(const BigInteger &lhs, const digit rhs) {
     BigInteger result;
     result.digits.resize(lhs.size(), 0);
     digit carry = rhs;
@@ -355,8 +368,8 @@ class BigInteger {
     return sum & digit_max;
   }
   // Add two numbers assuming they are positive
-  static BigInteger addAbs(const BigInteger &lhs, const BigInteger &rhs) {
-    if (lhs.size() < rhs.size()) return addAbs(rhs, lhs);
+  static BigInteger add_abs(const BigInteger &lhs, const BigInteger &rhs) {
+    if (lhs.size() < rhs.size()) return add_abs(rhs, lhs);
     BigInteger result;
     size_t maxLength = std::max(lhs.size(), rhs.size() + 1);
     result.digits.resize(maxLength + 1, 0);
@@ -370,27 +383,27 @@ class BigInteger {
     return result.rlz();
   }
 
-  bool is_zero() const { return digits.size() == 1 && digits[0] == 0; }
+  bool is_zero() const { return size() == 1 && digits[0] == 0; }
 
  private:
   // Returns remainder, changes the number to the quotient
-  digit divideBySingleDigit(digit divisor) {
+  digit divide_by_single_digit(digit divisor) {
     if (divisor == 0) throw std::runtime_error("Division by zero");
     if (divisor == 1) return 0;
 
     d_digit remainder = 0;
-    for (int i = digits.size() - 1; i >= 0; --i) {
-      d_digit current = remainder * ((d_digit)digit_max + 1) + digits[i];
-      digits[i] = current / divisor;
+    for (size_t i = 0; i < size(); i++) {
+      d_digit current = remainder * (static_cast<d_digit>(digit_max) + 1) + static_cast<d_digit>(digits[size() - 1 - i]);
+      digits[size() - 1 - i] = static_cast<digit>(current / static_cast<d_digit>(divisor));
       remainder = current % divisor;
     }
 
     trim();
-    return remainder;
+    return static_cast<digit>(remainder);
   }
 };
 inline std::ostream &operator<<(std::ostream &lhs, const BigInteger &rhs) {
-  lhs << rhs.toString();
+  lhs << rhs.to_string();
   return lhs;
 }
 inline BigInteger ABS(const BigInteger &number) {
@@ -403,8 +416,8 @@ BigInteger left_shift(const BigInteger &number, const size_t shift) {
   if (number.is_zero()) return number;
   if (shift == 0) return number;
 
-  digit digit_shift = shift / digit_size;
-  digit bit_shift = shift % digit_size;
+  digit digit_shift = static_cast<digit>(shift) / digit_size;
+  digit bit_shift = static_cast<digit>(shift) % digit_size;
   BigInteger result;
   result.negative = number.negative;
   result.digits.resize(number.size() + digit_shift + 1, 0);
@@ -433,7 +446,7 @@ inline BigInteger operator+(const BigInteger &lhs, digit rhs) {
   if (lhs.is_zero()) return BigInteger(rhs);
   if (rhs == 0) return lhs;
   if (lhs.negative) return BigInteger(rhs) - (-lhs);
-  return BigInteger::add_abs(lhs, rhs);
+  return BigInteger::add_abs_digit(lhs, rhs);
 }
 inline BigInteger operator+(const BigInteger &lhs, const int rhs) {
   if (lhs.is_zero()) return BigInteger(rhs);
@@ -441,7 +454,7 @@ inline BigInteger operator+(const BigInteger &lhs, const int rhs) {
   if (lhs.negative && rhs > 0) return BigInteger(rhs) - (-lhs);  // (-a) + b = b - a
   if (!lhs.negative && rhs < 0) return lhs - (-rhs);             // a + (-b) = a - b
   if (lhs.negative && rhs < 0) return -((-lhs) + (-rhs));        // (-a) + (-b) = -(a + b)
-  return BigInteger::add_abs(lhs, rhs);
+  return BigInteger::add_abs_digit(lhs, static_cast<digit>(rhs));
 }
 inline BigInteger operator+(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero()) return rhs;
@@ -449,22 +462,22 @@ inline BigInteger operator+(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.negative && !rhs.negative) return rhs - (-lhs);
   if (!lhs.negative && rhs.negative) return lhs - (-rhs);
 
-  BigInteger result = BigInteger::addAbs(ABS(lhs), ABS(rhs));
+  BigInteger result = BigInteger::add_abs(ABS(lhs), ABS(rhs));
   result.negative = lhs.negative && rhs.negative;
   return result;
 }
 inline BigInteger operator-(const BigInteger &lhs, const digit rhs) {
-  if (lhs.is_zero()) return BigInteger(-rhs);
+  if (lhs.is_zero()) return BigInteger(static_cast<int64_t>(-rhs));
   if (rhs == 0) return lhs;
   if (lhs.negative) return -((-lhs) + rhs);
-  return BigInteger::subAbs(lhs, rhs);
+  return BigInteger::substitute_abs(lhs, rhs);
 }
 inline digit operator-(const digit lhs, const BigInteger &rhs) {
   if (rhs.is_zero()) return BigInteger(lhs).to_digit();
   if (lhs == 0) return -rhs.to_digit();
   if (rhs.negative) return -((-rhs) + BigInteger(static_cast<int64_t>(lhs))).to_digit();
 
-  BigInteger result = BigInteger::subAbs(ABS(rhs), lhs);
+  BigInteger result = BigInteger::substitute_abs(ABS(rhs), lhs);
   result.negative = true;
   return result.rlz().to_digit();
 }
@@ -474,7 +487,7 @@ inline BigInteger operator-(const BigInteger &lhs, const int rhs) {
   if (lhs.negative && rhs > 0) return -((-lhs) + rhs);     // (-a) - b = -(a + b)
   if (!lhs.negative && rhs < 0) return lhs + (-rhs);       // a - (-b) = a + b
   if (lhs.negative && rhs < 0) return -((-lhs) - (-rhs));  // (-a) - (-b) = b - a
-  return BigInteger::subAbs(lhs, static_cast<digit>(rhs));
+  return BigInteger::substitute_abs(lhs, static_cast<digit>(rhs));
 }
 inline BigInteger operator-(const BigInteger &lhs, const BigInteger &rhs) {
   if (lhs.is_zero()) return -rhs;
@@ -499,7 +512,7 @@ inline BigInteger operator*(const BigInteger &lhs, const digit rhs) {
   if (lhs.is_zero() || rhs == 0) return 0;
   if (lhs == 1) return BigInteger(rhs);
   if (rhs == 1) return lhs;
-  if (rhs == 2) return lhs.multiplyByTwo();
+  if (rhs == 2) return lhs.multiply_by_two_own();
 
   BigInteger result;
   result.digits.resize(lhs.size() + 1, 0);
@@ -509,7 +522,7 @@ inline BigInteger operator*(const BigInteger &lhs, const digit rhs) {
   for (size_t i = 0; i < lhs.size(); ++i) {
     digit new_product_carry = 0;
     d_digit product = BigInteger::mul2(lhs[i], rhs, &new_product_carry);
-    result.digits[i] = BigInteger::add3(product, old_product_carry, sum_carry, &sum_carry);
+    result.digits[i] = BigInteger::add3(static_cast<digit>(product), old_product_carry, sum_carry, &sum_carry);
     old_product_carry = new_product_carry;
   }
   result.digits[lhs.size()] = old_product_carry + sum_carry;
@@ -565,9 +578,9 @@ BigInteger operator/(const BigInteger &lhs, digit rhs) {
   BigInteger result;
   result.digits.resize(dividend.size(), 0);
   d_digit remainder = 0;
-  for (int i = dividend.size() - 1; i >= 0; --i) {
-    d_digit current_digit = (remainder * ((d_digit)digit_max + 1)) + (d_digit)dividend[i];
-    result.digits[i] = current_digit / rhs;
+  for (size_t i = 0; i < dividend.size(); i++) {
+    d_digit current_digit = (remainder * ((d_digit)digit_max + 1)) + static_cast<d_digit>(dividend[result.size() - 1 - i]);
+    result.digits[result.size() - 1 - i] = static_cast<digit>(current_digit / static_cast<d_digit>(rhs));
     remainder = current_digit % rhs;
   }
 
@@ -757,7 +770,7 @@ class BigRational {
 
   bool is_zero() const { return numerator.is_zero(); }
 
-  BigRational addAbs(const BigRational &lhs, const BigRational &rhs) const {
+  BigRational add_abs(const BigRational &lhs, const BigRational &rhs) const {
     BigRational result;
     result.denominator = lhs.denominator * rhs.denominator;
     result.numerator = lhs.numerator * rhs.denominator + rhs.numerator * lhs.denominator;
@@ -786,7 +799,7 @@ inline BigRational operator+(BigRational lhs, const BigRational &rhs) {
     BigRational temp = rhs, temp2 = lhs;
     temp.negative = false;
     temp2.negative = false;
-    BigRational result = lhs.addAbs(temp2, temp);
+    BigRational result = lhs.add_abs(temp2, temp);
     result.negative = lhs.negative && rhs.negative;
     return result.to_normalized();
   }
@@ -862,7 +875,7 @@ inline bool operator>=(const BigRational &lhs, const BigRational &rhs) {
 }
 
 inline std::ostream &operator<<(std::ostream &lhs, const BigRational &rhs) {
-  lhs << rhs.numerator.toString() << "/" << rhs.denominator.toString();
+  lhs << rhs.numerator.to_string() << "/" << rhs.denominator.to_string();
   return lhs;
 }
 
@@ -890,4 +903,4 @@ inline std::istream &operator>>(std::istream &lhs, BigRational &rhs) {
 inline BigInteger eval(const std::string &);
 #endif
 
-std::string BigIntegerToString(const BigInteger &number) { return number.toString(); }
+std::string BigIntegerToString(const BigInteger &number) { return number.to_string(); }

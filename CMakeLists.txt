@@ -22,11 +22,38 @@ add_custom_target(run
     DEPENDS app
     COMMENT "Running ..."
 )
+set(DEBUG_OPTIONS
+  -Wsign-conversion
+  -Wconversion 
+  -Weffc++
+  -Wextra
+  -Wformat=2
+  -Wlong-long
+  -Wmissing-include-dirs
+  -Wredundant-decls
+  -Wstrict-overflow
+  -Wundef
+  -Wnull-dereference
+  -Walloca
+  -Wcast-qual
+  -Werror=vla
+  -pedantic-errors
+  -O0
+  -Wall
+  -Wextra
+  -std=c++20
+  -ggdb
+  -g3
+  -DDEBUG
+  -fsanitize=address
+  -fno-omit-frame-pointer
+)
 
+# Use the common options for both compilation and linking
 add_executable(app_debug ./test/test.cpp)
 target_link_libraries(app_debug PRIVATE Catch2::Catch2WithMain)
-target_compile_options(app_debug PRIVATE -Wextra -Wformat=2 -Wlong-long -Wmissing-include-dirs -Wredundant-decls -Wstrict-overflow -Wundef -Wnull-dereference -Walloca -Wcast-qual -Werror=vla -pedantic-errors -O0 -Wall -Wextra -std=c++20 -ggdb -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer)
-target_link_options(app_debug PRIVATE -Wextra -Wformat=2 -Wlogical-op -Wmissing-include-dirs -Wredundant-decls -Wstrict-overflow -Wundef -Wnull-dereference -Walloca -Wcast-qual -Werror=vla -pedantic-errors -O0 -Wall -Wextra -std=c++20 -ggdb -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer)
+target_compile_options(app_debug PRIVATE ${DEBUG_OPTIONS})
+target_link_options(app_debug PRIVATE ${DEBUG_OPTIONS})
 add_custom_target(debug
     COMMAND sh -c "time ./app_debug"
     COMMAND rm app_debug
